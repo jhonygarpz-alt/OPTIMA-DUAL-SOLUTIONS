@@ -657,7 +657,7 @@
 (function () {
   "use strict";
 
-  // --- dark mode: applied immediately (before Firestore/rows setup) so
+  // --- dark mode: applied immediately (before Supabase/rows setup) so
   // there's no flash of the wrong theme; remembered per-device only, since
   // it's a display preference, not shared fleet data. ---
   (function initTheme() {
@@ -709,7 +709,7 @@
 
   // --- client modules: per-client service logs (e.g. Multimodal's daily
   // container-tracking sheets), opened from the side dock. Each module has
-  // its own set of tabs; each tab's rows live in their own Firestore
+  // its own set of tabs; each tab's rows live inside the shared
   // collection (not the main flota/estatus doc) since these logs grow
   // large over time and only need to be fetched while that tab is open. ---
   var CICLOS_ESTATUS = [
@@ -740,18 +740,12 @@
 
   // Mutable, synced list of user-created client modules (in addition to the
   // built-in ones above). Kept separate so only modules people actually
-  // create through "+ Módulo de cliente" carry a logo through Firestore.
+  // create through "+ Módulo de cliente" carry a logo through sync.
   var clienteModulos = [];
 
   // Module service-log rows, keyed by moduloRowsKey(mod, tab) -> array of
-  // row objects. Lives inside the same flota/estatus document as
-  // everything else (not a separate Firestore collection): the security
-  // rules set up for this project only open that one document, and a
-  // second collection would need its own rule change. Riding the existing
-  // document keeps everything working with zero extra setup; at the
-  // import volumes here (tens of rows going forward, not the client's full
-  // multi-thousand-row historical sheets) it stays well under Firestore's
-  // 1MB document limit.
+  // row objects. Lives inside the same flota_estatus row as everything
+  // else, same reasoning as the rest of this file's single-blob sync.
   var moduloRows = {};
 
   function allModulos() { return BUILTIN_MODULOS.concat(clienteModulos); }
@@ -773,15 +767,16 @@
   var DEFAULT_TOTAL_UNIDADES = 0;
   var lastCapture = null;
 
-  // --- Firestore sync across devices/browsers via plain REST + polling ---
-  // (Not the Firebase JS SDK: its persistent WebChannel connection gets
-  // silently swallowed by some corporate/proxy networks — requests "succeed"
-  // but no data ever reaches the server. Plain fetch() request/response looks
-  // like ordinary web traffic and works everywhere.)
-  var FIRESTORE_API_KEY = "PENDIENTE_CONFIGURAR_FIREBASE";
-  var FIRESTORE_DOC_URL =
-    "https://firestore.googleapis.com/v1/projects/PENDIENTE_CONFIGURAR_FIREBASE/databases/default/documents/flota/estatus?key=" +
-    FIRESTORE_API_KEY;
+  // --- Supabase sync across devices/browsers via plain REST + polling ---
+  // One row (id=1) in public.flota_estatus holds the entire app state in
+  // its `data` jsonb column — same single-document-with-everything shape
+  // the app has always used, just stored as plain JSON in Postgres
+  // instead of Firestore's typed-value encoding (no fsValueToJs/
+  // jsValueToFs translation needed at all).
+  var SUPABASE_URL = "https://pwsayfyjndignhqkxikv.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_6tvMsIDXEhzvDIWN0ySy2Q_A3sikSuo";
+  var SUPABASE_ROW_URL = SUPABASE_URL + "/rest/v1/flota_estatus?id=eq.1";
+  var SUPABASE_HEADERS = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
   var POLL_INTERVAL_MS = 4000;
   var syncEnabled = false;
   var writeTimer = null;
@@ -795,79 +790,44 @@
     txt.textContent = text;
   }
 
-  function fsValueToJs(v) {
-    if (!v) return null;
-    if ("stringValue" in v) return v.stringValue;
-    if ("integerValue" in v) return parseInt(v.integerValue, 10);
-    if ("doubleValue" in v) return v.doubleValue;
-    if ("booleanValue" in v) return v.booleanValue;
-    if ("nullValue" in v) return null;
-    if ("arrayValue" in v) return (v.arrayValue.values || []).map(fsValueToJs);
-    if ("mapValue" in v) {
-      var out = {};
-      var f = v.mapValue.fields || {};
-      Object.keys(f).forEach(function (k) { out[k] = fsValueToJs(f[k]); });
-      return out;
-    }
-    return null;
-  }
-
-  function jsValueToFs(v) {
-    if (v === null || v === undefined) return { nullValue: null };
-    if (typeof v === "string") return { stringValue: v };
-    if (typeof v === "number") {
-      return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-    }
-    if (typeof v === "boolean") return { booleanValue: v };
-    if (Array.isArray(v)) return { arrayValue: { values: v.map(jsValueToFs) } };
-    var fields = {};
-    Object.keys(v).forEach(function (k) { fields[k] = jsValueToFs(v[k]); });
-    return { mapValue: { fields: fields } };
-  }
-
-  function firestoreGet() {
-    return fetch(FIRESTORE_DOC_URL, { method: "GET", cache: "no-store" }).then(function (res) {
-      if (res.status === 404) return null;
+  function supabaseGet() {
+    return fetch(SUPABASE_ROW_URL + "&select=data", { method: "GET", cache: "no-store", headers: SUPABASE_HEADERS }).then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) { throw new Error("GET " + res.status + ": " + t); });
       }
-      return res.json().then(function (doc) {
-        var out = {};
-        var f = doc.fields || {};
-        Object.keys(f).forEach(function (k) { out[k] = fsValueToJs(f[k]); });
-        return out;
-      });
+      return res.json();
+    }).then(function (rows) {
+      if (!rows || !rows.length) return null;
+      return rows[0].data || {};
     });
   }
 
-  function firestorePatch(data) {
-    var fields = {};
-    Object.keys(data).forEach(function (k) { fields[k] = jsValueToFs(data[k]); });
-    return fetch(FIRESTORE_DOC_URL, {
+  function supabasePatch(data) {
+    var headers = Object.assign({ "Content-Type": "application/json", "Prefer": "return=minimal" }, SUPABASE_HEADERS);
+    return fetch(SUPABASE_ROW_URL, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fields: fields })
+      headers: headers,
+      body: JSON.stringify({ data: data, updated_at: new Date().toISOString() })
     }).then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) { throw new Error("PATCH " + res.status + ": " + t); });
       }
-      return res.json();
     });
   }
 
   function pollOnce() {
-    firestoreGet().then(function (data) {
+    supabaseGet().then(function (data) {
       pollFailures = 0;
       syncEnabled = true;
       setSyncStatus("online", "En línea");
-      if (data) {
+      if (data && Object.keys(data).length) {
         applyRemoteState(data);
       } else {
         writeFullState();
       }
     }).catch(function (err) {
       pollFailures++;
-      console.error("Firestore GET error:", err);
+      console.error("Supabase GET error:", err);
       syncEnabled = false;
       setSyncStatus("offline", "Sin conexión (cambios solo locales)");
     });
@@ -1082,8 +1042,8 @@
   function writeFullState() {
     var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
-    firestorePatch(body).catch(function (err) {
-      console.error("Firestore write error (writeFullState):", err);
+    supabasePatch(body).catch(function (err) {
+      console.error("Supabase write error (writeFullState):", err);
       setSyncStatus("offline", "Error al guardar");
     });
   }

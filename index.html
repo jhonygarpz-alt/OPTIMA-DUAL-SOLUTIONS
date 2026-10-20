@@ -102,6 +102,7 @@
   thead th.w-status { width: 192px; }
   thead th.w-cliente { width: 208px; }
   thead th.w-sucursal { width: 170px; }
+  thead th.w-tipo-unidad { width: 160px; }
   tbody tr:nth-child(odd) { background: #F3F8FA; }
   tbody tr:nth-child(even) { background: #fff; }
   tbody td { padding: 8px; border-top: 1px solid #E5EFF3; }
@@ -297,6 +298,17 @@
   .sucursal-mini-table td { padding: 6px 8px; border-top: 1px solid #E5EFF3; }
   .sucursal-mini-table tr:first-child td { border-top: none; }
 
+  /* --- Tracto / Remolques tab: units grouped by vehicle category --- */
+  .tipo-unidad-grid { padding: 18px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .tipo-unidad-card { border: 1px solid #D7E6ED; border-radius: 12px; padding: 14px; background: #F5FAFC; }
+  .tipo-unidad-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }
+  .tipo-unidad-name { font-weight: 700; color: var(--brand); font-size: 15px; }
+  .tipo-unidad-unit-count { font-size: 12px; color: #0D4C73; font-weight: 600; }
+  .tipo-unidad-empty { font-size: 13px; color: #9CA3AF; padding: 6px 0; }
+  .tipo-unidad-mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tipo-unidad-mini-table td { padding: 6px 8px; border-top: 1px solid #E5EFF3; }
+  .tipo-unidad-mini-table tr:first-child td { border-top: none; }
+
   /* --- client modules dock: quick-launch buttons for per-client service logs --- */
   .client-modules-dock {
     position: fixed; right: 18px; top: 130px; display: flex; flex-direction: column; gap: 10px; z-index: 40;
@@ -431,6 +443,10 @@
   :root[data-theme="dark"] .sucursal-unit-count { color: #7DD3FC; }
   :root[data-theme="dark"] .sucursal-empty { color: #64748B; }
   :root[data-theme="dark"] .sucursal-mini-table td { border-top-color: #334155; }
+  :root[data-theme="dark"] .tipo-unidad-card { background: #1A2332; border-color: #334155; }
+  :root[data-theme="dark"] .tipo-unidad-unit-count { color: #7DD3FC; }
+  :root[data-theme="dark"] .tipo-unidad-empty { color: #64748B; }
+  :root[data-theme="dark"] .tipo-unidad-mini-table td { border-top-color: #334155; }
 </style>
 </head>
 <body>
@@ -465,6 +481,7 @@
       <button class="tab-btn active" id="tabEstatus" type="button">Estatus de Flota</button>
       <button class="tab-btn" id="tabClientes" type="button">Clientes</button>
       <button class="tab-btn" id="tabSucursales" type="button">Sucursales</button>
+      <button class="tab-btn" id="tabTipoUnidad" type="button">Tracto / Remolques</button>
     </div>
 
     <div id="panelEstatus">
@@ -491,6 +508,7 @@
               <th class="w-status">STATUS ACTUAL</th>
               <th class="w-cliente">CLIENTE</th>
               <th class="w-sucursal">SUCURSAL</th>
+              <th class="w-tipo-unidad">TIPO DE UNIDAD</th>
             </tr>
           </thead>
           <tbody id="rowsBody"></tbody>
@@ -498,6 +516,7 @@
       </div>
       <datalist id="clientesList"></datalist>
       <datalist id="sucursalesList"></datalist>
+      <datalist id="tipoUnidadList"></datalist>
 
       <div class="footer-bar">
         <button class="btn-reset" id="btnReset" type="button">
@@ -524,6 +543,13 @@
         <span class="clientes-count" id="sucursalesCount">0 sucursales</span>
       </div>
       <div class="sucursales-grid" id="sucursalesGrid"></div>
+    </div>
+
+    <div id="panelTipoUnidad" hidden>
+      <div class="clientes-toolbar">
+        <span class="clientes-count" id="tipoUnidadCount">0 categorías</span>
+      </div>
+      <div class="tipo-unidad-grid" id="tipoUnidadGrid"></div>
     </div>
   </div>
 
@@ -759,6 +785,10 @@
   // gets added here automatically.
   var sucursalesConocidas = ["AUTOTANQUES ARGO", "JEQUE TRANSPORTATION", "MATRIZ", "REVUSA JEQUE", "REVUSA MAFASE", "REVUSA MONTERREY", "REYES ENRIQUE VASQUEZ URREA", "TORCH INDUSTRIAL GASES"];
 
+  // Mutable, synced list of vehicle categories (tracto, remolques y demás) —
+  // feeds itself just like Sucursal/Cliente.
+  var tipoUnidadConocidos = ["AUTOMOVIL", "CAMIONETA", "DOLLY", "PICKUP", "RABON", "TANQUE", "TORTON", "TRACTOCAMION"];
+
   var TIPO_COLORS = {
     "Propio": { color: "#1D4ED8", bg: "#DBEAFE" },
     "Permisionario": { color: "#B45309", bg: "#FEF3C7" }
@@ -902,6 +932,12 @@
           if (!panelSucursales.hidden) renderSucursalesTab();
         }
       }
+      if (Array.isArray(data.tipoUnidadConocidos) && data.tipoUnidadConocidos.length) {
+        if (JSON.stringify(data.tipoUnidadConocidos) !== JSON.stringify(tipoUnidadConocidos)) {
+          tipoUnidadConocidos = data.tipoUnidadConocidos;
+          if (!panelTipoUnidad.hidden) renderTipoUnidadTab();
+        }
+      }
       if (Array.isArray(data.rows)) {
         var existingById = {};
         Array.prototype.forEach.call(tbody.querySelectorAll("tr"), function (tr) {
@@ -939,6 +975,7 @@
           var sel = tr.querySelector('select[data-field="status"]');
           var inpCliente = tr.querySelector('input[data-field="cliente"]');
           var inpSucursal = tr.querySelector('input[data-field="sucursal"]');
+          var inpTipoUnidad = tr.querySelector('input[data-field="tipoUnidad"]');
           if (tdUnidad.textContent !== r.unidad) tdUnidad.textContent = r.unidad;
           if (document.activeElement !== inpContenedor && inpContenedor.value !== (r.contenedor || "")) {
             inpContenedor.value = r.contenedor || "";
@@ -962,6 +999,9 @@
           }
           if (document.activeElement !== inpSucursal && inpSucursal.value !== (r.sucursal || "")) {
             inpSucursal.value = r.sucursal || "";
+          }
+          if (document.activeElement !== inpTipoUnidad && inpTipoUnidad.value !== (r.tipoUnidad || "")) {
+            inpTipoUnidad.value = r.tipoUnidad || "";
           }
           updateAvailabilityFromStatus(tr, sel.value);
         });
@@ -1034,13 +1074,14 @@
         ubicacion: inpUbic.dataset.geocoding ? (inpUbic.dataset.pendingValue || "") : inpUbic.value,
         status: tr.querySelector('select[data-field="status"]').value,
         cliente: tr.querySelector('input[data-field="cliente"]').value,
-        sucursal: tr.querySelector('input[data-field="sucursal"]').value
+        sucursal: tr.querySelector('input[data-field="sucursal"]').value,
+        tipoUnidad: tr.querySelector('input[data-field="tipoUnidad"]').value
       };
     });
   }
 
   function writeFullState() {
-    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, updatedAt: Date.now() };
+    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
     supabasePatch(body).catch(function (err) {
       console.error("Supabase write error (writeFullState):", err);
@@ -1382,6 +1423,99 @@
           var tr = document.createElement("tr");
           var conts = [r.contenedor, r.contenedor2].filter(function (v) { return v; }).join(" / ");
           [r.unidad, conts, r.cliente, r.status, r.ubicacion].forEach(function (v) {
+            var td = document.createElement("td");
+            td.textContent = v || "—";
+            tr.appendChild(td);
+          });
+          table.appendChild(tr);
+        });
+        card.appendChild(table);
+      }
+      grid.appendChild(card);
+    });
+  }
+
+  // --- Tracto / Remolques tab: units grouped by vehicle category ---
+  function refreshTipoUnidadDatalist() {
+    var dl = document.getElementById("tipoUnidadList");
+    dl.innerHTML = "";
+    tipoUnidadConocidos.forEach(function (nombre) {
+      var o = document.createElement("option");
+      o.value = nombre;
+      dl.appendChild(o);
+    });
+  }
+
+  function registerTipoUnidadIfNew(nombre) {
+    nombre = (nombre || "").trim();
+    if (!nombre) return false;
+    var exists = tipoUnidadConocidos.some(function (s) { return s.toLowerCase() === nombre.toLowerCase(); });
+    if (exists) return false;
+    tipoUnidadConocidos.push(nombre);
+    tipoUnidadConocidos.sort(function (a, b) { return a.localeCompare(b, "es"); });
+    refreshTipoUnidadDatalist();
+    return true;
+  }
+
+  function renderTipoUnidadTab() {
+    refreshTipoUnidadDatalist();
+    var grid = document.getElementById("tipoUnidadGrid");
+    grid.innerHTML = "";
+
+    var rows = collectRows();
+    var byTipo = {};
+    rows.forEach(function (r) {
+      var t = (r.tipoUnidad || "").trim();
+      if (!t) return;
+      if (!byTipo[t]) byTipo[t] = [];
+      byTipo[t].push(r);
+    });
+
+    var names = [];
+    tipoUnidadConocidos.forEach(function (s) { if (names.indexOf(s) === -1) names.push(s); });
+    Object.keys(byTipo).forEach(function (s) { if (names.indexOf(s) === -1) names.push(s); });
+    names.sort(function (a, b) { return a.localeCompare(b, "es"); });
+
+    document.getElementById("tipoUnidadCount").textContent =
+      names.length + (names.length === 1 ? " categoría" : " categorías");
+
+    if (!names.length) {
+      var empty = document.createElement("div");
+      empty.className = "clientes-empty";
+      empty.textContent = "Aún no hay categorías de unidad registradas.";
+      grid.appendChild(empty);
+      return;
+    }
+
+    names.forEach(function (nombre) {
+      var list = byTipo[nombre] || [];
+      var card = document.createElement("div");
+      card.className = "tipo-unidad-card";
+
+      var head = document.createElement("div");
+      head.className = "tipo-unidad-card-head";
+      var nameEl = document.createElement("span");
+      nameEl.className = "tipo-unidad-name";
+      nameEl.textContent = nombre;
+      var countEl = document.createElement("span");
+      countEl.className = "tipo-unidad-unit-count";
+      countEl.textContent = list.length + (list.length === 1 ? " unidad" : " unidades");
+      head.appendChild(nameEl);
+      head.appendChild(countEl);
+      card.appendChild(head);
+
+      if (!list.length) {
+        var noneEl = document.createElement("div");
+        noneEl.className = "tipo-unidad-empty";
+        noneEl.textContent = "Sin unidades en esta categoría actualmente.";
+        card.appendChild(noneEl);
+      } else {
+        var table = document.createElement("table");
+        table.className = "tipo-unidad-mini-table";
+        list.forEach(function (r) {
+          var tr = document.createElement("tr");
+          var conts = [r.contenedor, r.contenedor2].filter(function (v) { return v; }).join(" / ");
+          [r.unidad, conts, r.sucursal, r.status, r.ubicacion].forEach(function (v) {
             var td = document.createElement("td");
             td.textContent = v || "—";
             tr.appendChild(td);
@@ -1746,6 +1880,7 @@
   var panelEstatus = document.getElementById("panelEstatus");
   var panelClientes = document.getElementById("panelClientes");
   var panelSucursales = document.getElementById("panelSucursales");
+  var panelTipoUnidad = document.getElementById("panelTipoUnidad");
 
   function createRowElement(rowData) {
     var tr = document.createElement("tr");
@@ -1928,6 +2063,21 @@
     });
     tdSucursal.appendChild(inpSucursal);
     tr.appendChild(tdSucursal);
+
+    var tdTipoUnidad = document.createElement("td");
+    var inpTipoUnidad = document.createElement("input");
+    inpTipoUnidad.type = "text";
+    inpTipoUnidad.placeholder = "Tracto, Tanque, Dolly…";
+    inpTipoUnidad.dataset.field = "tipoUnidad";
+    inpTipoUnidad.setAttribute("list", "tipoUnidadList");
+    inpTipoUnidad.value = rowData.tipoUnidad || "";
+    inpTipoUnidad.addEventListener("input", scheduleWrite);
+    inpTipoUnidad.addEventListener("change", function () {
+      registerTipoUnidadIfNew(inpTipoUnidad.value);
+      scheduleWrite();
+    });
+    tdTipoUnidad.appendChild(inpTipoUnidad);
+    tr.appendChild(tdTipoUnidad);
 
     return tr;
   }
@@ -3027,13 +3177,14 @@
     if (e.target === modalAddStatus) modalAddStatus.hidden = true;
   });
 
-  // --- tabs: Estatus de Flota / Clientes / Sucursales ---
+  // --- tabs: Estatus de Flota / Clientes / Sucursales / Tracto-Remolques ---
   var tabEstatus = document.getElementById("tabEstatus");
   var tabClientes = document.getElementById("tabClientes");
   var tabSucursales = document.getElementById("tabSucursales");
+  var tabTipoUnidad = document.getElementById("tabTipoUnidad");
   function activateTab(tabBtn, panel) {
-    [tabEstatus, tabClientes, tabSucursales].forEach(function (b) { b.classList.toggle("active", b === tabBtn); });
-    [panelEstatus, panelClientes, panelSucursales].forEach(function (p) { p.hidden = p !== panel; });
+    [tabEstatus, tabClientes, tabSucursales, tabTipoUnidad].forEach(function (b) { b.classList.toggle("active", b === tabBtn); });
+    [panelEstatus, panelClientes, panelSucursales, panelTipoUnidad].forEach(function (p) { p.hidden = p !== panel; });
   }
   tabEstatus.addEventListener("click", function () { activateTab(tabEstatus, panelEstatus); });
   tabClientes.addEventListener("click", function () {
@@ -3043,6 +3194,10 @@
   tabSucursales.addEventListener("click", function () {
     activateTab(tabSucursales, panelSucursales);
     renderSucursalesTab();
+  });
+  tabTipoUnidad.addEventListener("click", function () {
+    activateTab(tabTipoUnidad, panelTipoUnidad);
+    renderTipoUnidadTab();
   });
 
   // --- add-client modal ---
@@ -3069,6 +3224,7 @@
   });
   renderClientesTab();
   renderSucursalesTab();
+  renderTipoUnidadTab();
 
   // --- client modules: dock, open/close, new-module modal ---
   renderModulesDock();

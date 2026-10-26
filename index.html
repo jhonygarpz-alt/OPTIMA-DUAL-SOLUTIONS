@@ -20,9 +20,9 @@
   .wrap {
     position: relative;
     z-index: 1;
-    max-width: 1024px;
+    max-width: 1600px;
     margin: 0 auto;
-    padding: 20px 12px 40px;
+    padding: 20px 20px 40px;
   }
   .card {
     background: #fff;
@@ -94,7 +94,7 @@
   .btn-small { padding: 7px 14px; font-size: 13px; }
 
   .table-scroll { overflow-x: auto; }
-  table { width: 100%; min-width: 1100px; border-collapse: collapse; font-size: 14px; }
+  table { width: 100%; min-width: 1400px; border-collapse: collapse; font-size: 14px; }
   thead tr { background: #1F2937; }
   thead th { color: #fff; text-align: left; font-weight: 600; padding: 12px 16px; }
   thead th.w-unidad { width: 150px; }
@@ -103,6 +103,8 @@
   thead th.w-cliente { width: 208px; }
   thead th.w-sucursal { width: 170px; }
   thead th.w-tipo-unidad { width: 160px; }
+  thead th.w-origen { width: 170px; }
+  thead th.w-destino { width: 170px; }
   .col-hideable { display: none; }
   tbody tr:nth-child(odd) { background: #F3F8FA; }
   tbody tr:nth-child(even) { background: #fff; }
@@ -341,7 +343,7 @@
   .client-module-add:hover { border-color: var(--brand); color: var(--brand); }
   @media (max-width: 1199px) {
     .client-modules-dock {
-      position: static; flex-direction: row; flex-wrap: wrap; padding: 14px 20px 0; max-width: 1024px; margin: 0 auto;
+      position: static; flex-direction: row; flex-wrap: wrap; padding: 14px 20px 0; max-width: 1600px; margin: 0 auto;
     }
   }
 
@@ -517,6 +519,8 @@
             <tr>
               <th class="w-unidad">UNIDAD</th>
               <th class="w-contenedor">TANQUE</th>
+              <th class="w-origen">ORIGEN</th>
+              <th class="w-destino">DESTINO</th>
               <th class="col-hideable">UBICACIÓN ACTUAL</th>
               <th class="w-status">STATUS ACTUAL</th>
               <th class="w-cliente">CLIENTE</th>
@@ -999,6 +1003,8 @@
           var tdUnidad = tr.querySelector("td.unidad .unidad-text");
           var inpContenedor = tr.querySelector('input[data-field="contenedor"]');
           var inpContenedor2 = tr.querySelector('input[data-field="contenedor2"]');
+          var inpOrigen = tr.querySelector('input[data-field="origen"]');
+          var inpDestino = tr.querySelector('input[data-field="destino"]');
           var inpUbic = tr.querySelector('input[data-field="ubicacion"]');
           var selTipo = tr.querySelector('select[data-field="tipo"]');
           var sel = tr.querySelector('select[data-field="status"]');
@@ -1011,6 +1017,12 @@
           }
           if (document.activeElement !== inpContenedor2 && inpContenedor2.value !== (r.contenedor2 || "")) {
             inpContenedor2.value = r.contenedor2 || "";
+          }
+          if (document.activeElement !== inpOrigen && inpOrigen.value !== (r.origen || "")) {
+            inpOrigen.value = r.origen || "";
+          }
+          if (document.activeElement !== inpDestino && inpDestino.value !== (r.destino || "")) {
+            inpDestino.value = r.destino || "";
           }
           if (document.activeElement !== inpUbic && !inpUbic.dataset.geocoding && inpUbic.value !== (r.ubicacion || "")) {
             inpUbic.value = r.ubicacion || "";
@@ -1098,6 +1110,8 @@
         tipo: tr.querySelector('select[data-field="tipo"]').value,
         contenedor: tr.querySelector('input[data-field="contenedor"]').value,
         contenedor2: tr.querySelector('input[data-field="contenedor2"]').value,
+        origen: tr.querySelector('input[data-field="origen"]').value,
+        destino: tr.querySelector('input[data-field="destino"]').value,
         // While a reverse-geocode lookup is in flight the field shows a
         // "Buscando…" placeholder — never let that leak into a write
         // triggered by editing some other row in the meantime.
@@ -2056,6 +2070,26 @@
     contenedorWrap.appendChild(inpContenedor2);
     tdContenedor.appendChild(contenedorWrap);
     tr.appendChild(tdContenedor);
+
+    var tdOrigen = document.createElement("td");
+    var inpOrigen = document.createElement("input");
+    inpOrigen.type = "text";
+    inpOrigen.placeholder = "Ej. Monterrey, NL";
+    inpOrigen.dataset.field = "origen";
+    inpOrigen.value = rowData.origen || "";
+    inpOrigen.addEventListener("input", scheduleWrite);
+    tdOrigen.appendChild(inpOrigen);
+    tr.appendChild(tdOrigen);
+
+    var tdDestino = document.createElement("td");
+    var inpDestino = document.createElement("input");
+    inpDestino.type = "text";
+    inpDestino.placeholder = "Ej. Ciudad de México";
+    inpDestino.dataset.field = "destino";
+    inpDestino.value = rowData.destino || "";
+    inpDestino.addEventListener("input", scheduleWrite);
+    tdDestino.appendChild(inpDestino);
+    tr.appendChild(tdDestino);
 
     var tdUbic = document.createElement("td");
     tdUbic.className = "col-hideable";
@@ -3444,7 +3478,7 @@
     var now = new Date();
 
     Promise.resolve().then(function () {
-      var width = 960;
+      var width = 1200;
       var rowHeight = 34;
       // FULL operations with a second contenedor get a taller row so both
       // numbers are shown in full, on their own lines, instead of both
@@ -3513,11 +3547,13 @@
         ctx.fillRect(0, y, width, tableHeaderHeight);
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "bold 14px Arial";
-        var colX = [26, 190, 420, 650];
+        var colX = [26, 180, 350, 550, 760, 970];
         ctx.fillText("UNIDAD", colX[0], y + 27);
         ctx.fillText("TANQUE", colX[1], y + 27);
-        ctx.fillText("STATUS ACTUAL", colX[2], y + 27);
-        ctx.fillText("CLIENTE", colX[3], y + 27);
+        ctx.fillText("ORIGEN", colX[2], y + 27);
+        ctx.fillText("DESTINO", colX[3], y + 27);
+        ctx.fillText("STATUS ACTUAL", colX[4], y + 27);
+        ctx.fillText("CLIENTE", colX[5], y + 27);
         y += tableHeaderHeight;
 
         groupBlocks.forEach(function (block) {
@@ -3570,19 +3606,25 @@
               ctx.fillStyle = "#1F2937";
             }
 
+            var origen = r.origen && r.origen.trim() ? r.origen : "—";
+            ctx.fillText(truncateToWidth(ctx, origen, colX[3] - colX[2] - 10), colX[2], y + 22);
+
+            var destino = r.destino && r.destino.trim() ? r.destino : "—";
+            ctx.fillText(truncateToWidth(ctx, destino, colX[4] - colX[3] - 10), colX[3], y + 22);
+
             var info = statusInfo(r.status);
             ctx.fillStyle = info.bg;
-            roundRect(ctx, colX[2] - 8, y + 6, 172, 22, 11);
+            roundRect(ctx, colX[4] - 8, y + 6, 172, 22, 11);
             ctx.fill();
             ctx.fillStyle = info.color;
             ctx.font = "bold 12px Arial";
             var statusLabel = truncateToWidth(ctx, r.status, 160);
-            ctx.fillText(statusLabel, colX[2] + 2, y + 21);
+            ctx.fillText(statusLabel, colX[4] + 2, y + 21);
 
             ctx.fillStyle = "#1F2937";
             ctx.font = "13px Arial";
             var cli = r.cliente && r.cliente.trim() ? r.cliente : "—";
-            ctx.fillText(truncateToWidth(ctx, cli, width - 26 - colX[3]), colX[3], y + 22);
+            ctx.fillText(truncateToWidth(ctx, cli, width - 26 - colX[5]), colX[5], y + 22);
 
             y += rh;
           });

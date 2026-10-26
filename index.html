@@ -93,6 +93,19 @@
   }
   .btn-small { padding: 7px 14px; font-size: 13px; }
 
+  .flota-page-switcher { display: flex; gap: 6px; margin-left: auto; }
+  .flota-page-btn {
+    padding: 7px 14px; font-size: 13px; font-weight: 600; border-radius: 10px;
+    border: 1px solid #D7E6ED; background: #F1F6F9; color: #0D4C73; cursor: pointer;
+  }
+  .flota-page-btn:hover { background: #E5EFF3; }
+  .flota-page-btn.active {
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    border-color: transparent; color: #fff;
+  }
+  :root[data-theme="dark"] .flota-page-btn { background: #1A2332; border-color: #334155; color: #CBD5E1; }
+  :root[data-theme="dark"] .flota-page-btn:hover { background: #334155; }
+
   .table-scroll { overflow-x: auto; }
   table { width: 100%; min-width: 1400px; border-collapse: collapse; font-size: 14px; }
   thead tr { background: #1F2937; }
@@ -516,6 +529,11 @@
       <div class="toolbar">
         <button class="btn-reset btn-small" id="btnAddUnit" type="button">+ Agregar unidad</button>
         <button class="btn-reset btn-small" id="btnAddStatus" type="button">+ Nuevo estatus</button>
+        <div class="flota-page-switcher">
+          <button class="flota-page-btn" type="button" data-page="TRACTOS">Página 1 · Tractos</button>
+          <button class="flota-page-btn" type="button" data-page="TANQUES">Página 2 · Tanques</button>
+          <button class="flota-page-btn" type="button" data-page="OTROS">Otros</button>
+        </div>
       </div>
 
       <div class="table-scroll">
@@ -2226,6 +2244,25 @@
   // Cheap no-op when the row order already matches, so this can safely run
   // after every sync poll without reshuffling the table underneath someone
   // who's mid-edit.
+  // Which "page" of Estatus de Flota is showing: página 1 = Tractos,
+  // página 2 = Tanques, plus Otros for anything that's neither (so data
+  // never silently disappears). Pure front-end filter — every row still
+  // exists and syncs regardless of which page is active.
+  var activeFlotaPage = "TRACTOS";
+
+  function applyFlotaPageVisibility() {
+    var currentSub = null;
+    Array.prototype.forEach.call(tbody.children, function (el) {
+      if (el.classList && el.classList.contains("sucursal-sep")) {
+        currentSub = el.dataset.sub;
+      }
+      el.hidden = currentSub !== activeFlotaPage;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".flota-page-btn"), function (btn) {
+      btn.classList.toggle("active", btn.dataset.page === activeFlotaPage);
+    });
+  }
+
   function regroupRows() {
     var dataRows = Array.prototype.filter.call(tbody.children, function (el) {
       return el.tagName === "TR" && el.dataset.rowId;
@@ -2269,7 +2306,10 @@
       block.rows.forEach(function (tr) { desiredIds.push(tr.dataset.rowId); });
     });
     var currentIds = dataRows.map(function (tr) { return tr.dataset.rowId; });
-    if (desiredIds.join(",") === currentIds.join(",")) return;
+    if (desiredIds.join(",") === currentIds.join(",")) {
+      applyFlotaPageVisibility();
+      return;
+    }
 
     Array.prototype.forEach.call(tbody.querySelectorAll("tr.sucursal-sep"), function (tr) { tr.remove(); });
 
@@ -2280,6 +2320,7 @@
 
       var sep = document.createElement("tr");
       sep.className = "sucursal-sep";
+      sep.dataset.sub = block.sub;
       sep.style.setProperty("--group-band", colors.band);
       var td = document.createElement("td");
       td.colSpan = 10;
@@ -2312,6 +2353,7 @@
       });
     });
     tbody.appendChild(frag);
+    applyFlotaPageVisibility();
   }
 
   // Real fleet imported from the company's own unit list (unidad = Codigo,
@@ -3608,6 +3650,14 @@
     writeFullState();
   });
 
+  // --- Estatus de Flota page switcher (Tractos / Tanques / Otros) ---
+  Array.prototype.forEach.call(document.querySelectorAll(".flota-page-btn"), function (btn) {
+    btn.addEventListener("click", function () {
+      activeFlotaPage = btn.dataset.page;
+      applyFlotaPageVisibility();
+    });
+  });
+
   // --- add unit modal ---
   var modalAddUnit = document.getElementById("modalAddUnit");
   document.getElementById("btnAddUnit").addEventListener("click", function () {
@@ -3783,7 +3833,9 @@
     btn.disabled = true;
     label.textContent = "Generando…";
 
-    var rows = collectRows();
+    // Capture only the page currently on screen (Tractos / Tanques / Otros),
+    // same as what's visible in the live table.
+    var rows = collectRows().filter(function (r) { return tipoSubgroupOf(r.tipoUnidad) === activeFlotaPage; });
     var now = new Date();
 
     Promise.resolve().then(function () {

@@ -105,6 +105,9 @@
   thead th.w-tipo-unidad { width: 160px; }
   thead th.w-origen { width: 170px; }
   thead th.w-destino { width: 170px; }
+  thead th.w-check { width: 34px; }
+  td.w-check { padding-left: 14px; }
+  .row-select, .group-select { width: 16px; height: 16px; cursor: pointer; }
   .col-hideable { display: none; }
   tbody tr:nth-child(odd) { background: #F3F8FA; }
   tbody tr:nth-child(even) { background: #fff; }
@@ -257,8 +260,10 @@
   tbody tr.sucursal-sep { background: var(--group-band) !important; }
   tbody tr.sucursal-sep td {
     color: #fff; font-weight: 700; font-size: 13px; letter-spacing: .02em;
-    padding: 9px 16px; border-top: none;
+    padding: 9px 16px; border-top: none; white-space: nowrap;
   }
+  tbody tr.sucursal-sep .sucursal-sep-inner { display: flex; align-items: center; gap: 10px; }
+  tbody tr.sucursal-sep .group-select { accent-color: #fff; flex: none; }
   tbody tr.sucursal-row:not(.row-unavailable) { background: var(--group-tint) !important; }
   tbody tr.sucursal-row.decade-sep td { border-top: 2px solid rgba(0,0,0,.2); }
   :root[data-theme="dark"] tbody tr.sucursal-row.decade-sep td { border-top-color: rgba(255,255,255,.3); }
@@ -517,6 +522,7 @@
         <table>
           <thead>
             <tr>
+              <th class="w-check"></th>
               <th class="w-unidad">UNIDAD</th>
               <th class="w-contenedor">TANQUE</th>
               <th class="w-origen">ORIGEN</th>
@@ -800,19 +806,21 @@
   // Mutable, synced list of sucursal (branch) names — feeds itself just
   // like clientesConocidos: every new name typed into a "Sucursal" field
   // gets added here automatically.
-  var sucursalesConocidas = ["REVUSA", "REVUSA MTY", "ARGO", "JEQUE", "TORCH"];
+  var sucursalesConocidas = ["ARGO", "JEQUE", "REVUSA", "REVUSA-JEQUE", "REVUSA-MAFASA", "REVUSA-MTY", "TORCH"];
 
-  // The 5 sucursal groups the client asked for, in display order, plus the
-  // colors used to tell each section apart on the Estatus de Flota tab and
-  // on the captured/shared image. Any sucursal value that isn't one of
-  // these 5 (blank, or anything typed in later) falls into "OTRAS" so it
-  // still shows up instead of silently disappearing.
-  var SUCURSAL_GROUPS = ["REVUSA", "REVUSA MTY", "ARGO", "JEQUE", "TORCH"];
+  // The real sucursales, in display order, plus the colors used to tell
+  // each section apart on the Estatus de Flota tab and on the
+  // captured/shared image. Any sucursal value that isn't one of these
+  // (blank, or anything typed in later) falls into "OTRAS" so it still
+  // shows up instead of silently disappearing.
+  var SUCURSAL_GROUPS = ["ARGO", "JEQUE", "REVUSA", "REVUSA-JEQUE", "REVUSA-MAFASA", "REVUSA-MTY", "TORCH"];
   var SUCURSAL_GROUP_COLORS = {
+    "ARGO": { band: "#F9A825", tint: "#FFF8E1" },
+    "JEQUE": { band: "#EF6C00", tint: "#FFF3E0" },
     "REVUSA": { band: "#1565C0", tint: "#E3F2FD" },
-    "REVUSA MTY": { band: "#2E7D32", tint: "#E8F5E9" },
-    "ARGO": { band: "#EF6C00", tint: "#FFF3E0" },
-    "JEQUE": { band: "#7B1FA2", tint: "#F3E5F5" },
+    "REVUSA-JEQUE": { band: "#2E7D32", tint: "#E8F5E9" },
+    "REVUSA-MAFASA": { band: "#5E35B1", tint: "#EDE7F6" },
+    "REVUSA-MTY": { band: "#8E24AA", tint: "#F3E5F5" },
     "TORCH": { band: "#C62828", tint: "#FBE9E7" },
     "OTRAS": { band: "#546E7A", tint: "#ECEFF1" }
   };
@@ -820,6 +828,17 @@
     v = (v || "").trim().toUpperCase();
     return SUCURSAL_GROUPS.indexOf(v) !== -1 ? v : "OTRAS";
   }
+
+  // Within each sucursal, units are further split into TANQUES / TRACTOS /
+  // OTROS by their Tipo de Unidad, matching how the client's own fleet
+  // list is organized (e.g. "ARGO TANQUES", "ARGO TRACTOS").
+  function tipoSubgroupOf(v) {
+    v = (v || "").trim().toUpperCase();
+    if (v === "TANQUE") return "TANQUES";
+    if (v === "TRACTOCAMION") return "TRACTOS";
+    return "OTROS";
+  }
+  var TIPO_SUBGROUP_ORDER = ["TANQUES", "TRACTOS", "OTROS"];
 
   // Mutable, synced list of vehicle categories (tracto, remolques y demás) —
   // feeds itself just like Sucursal/Cliente.
@@ -1930,6 +1949,18 @@
     var tr = document.createElement("tr");
     tr.dataset.rowId = rowData.id || generateId();
 
+    // Selection checkbox: purely a front-end convenience (not synced, not
+    // tied to any bulk action yet) so each sucursal/tipo section can be
+    // checked or unchecked as a block, matching the client's reference list.
+    var tdCheck = document.createElement("td");
+    tdCheck.className = "w-check";
+    var chkRow = document.createElement("input");
+    chkRow.type = "checkbox";
+    chkRow.className = "row-select";
+    chkRow.checked = true;
+    tdCheck.appendChild(chkRow);
+    tr.appendChild(tdCheck);
+
     var tdUnidad = document.createElement("td");
     tdUnidad.className = "unidad";
     var unidadWrap = document.createElement("div");
@@ -2201,26 +2232,41 @@
     });
     if (!dataRows.length) return;
 
-    var byGroup = {};
+    // Two-level grouping: sucursal, then TANQUES / TRACTOS / OTROS inside it —
+    // matches how the client's own fleet list is organized (e.g. "ARGO
+    // TANQUES", "ARGO TRACTOS").
+    var bySucursal = {};
     dataRows.forEach(function (tr) {
       var g = sucursalGroupOf(tr.querySelector('input[data-field="sucursal"]').value);
-      (byGroup[g] = byGroup[g] || []).push(tr);
+      var sub = tipoSubgroupOf(tr.querySelector('input[data-field="tipoUnidad"]').value);
+      bySucursal[g] = bySucursal[g] || {};
+      (bySucursal[g][sub] = bySucursal[g][sub] || []).push(tr);
     });
-    var order = SUCURSAL_GROUPS.concat(Object.keys(byGroup).filter(function (g) {
+    var sucOrder = SUCURSAL_GROUPS.concat(Object.keys(bySucursal).filter(function (g) {
       return SUCURSAL_GROUPS.indexOf(g) === -1;
     }));
-    order.forEach(function (g) {
-      if (!byGroup[g]) return;
-      byGroup[g].sort(function (a, b) {
-        var ta = a.querySelector(".unidad-text").textContent;
-        var tb = b.querySelector(".unidad-text").textContent;
-        return ta.localeCompare(tb, "es", { numeric: true, sensitivity: "base" });
+
+    // blocks: ordered list of { sucursal, sub, rows: [...] } for every
+    // non-empty combo, each sorted alphanumerically by unidad.
+    var blocks = [];
+    sucOrder.forEach(function (g) {
+      var subs = bySucursal[g];
+      if (!subs) return;
+      TIPO_SUBGROUP_ORDER.forEach(function (sub) {
+        var rows = subs[sub];
+        if (!rows || !rows.length) return;
+        rows.sort(function (a, b) {
+          var ta = a.querySelector(".unidad-text").textContent;
+          var tb = b.querySelector(".unidad-text").textContent;
+          return ta.localeCompare(tb, "es", { numeric: true, sensitivity: "base" });
+        });
+        blocks.push({ sucursal: g, sub: sub, rows: rows });
       });
     });
 
     var desiredIds = [];
-    order.forEach(function (g) {
-      (byGroup[g] || []).forEach(function (tr) { desiredIds.push(tr.dataset.rowId); });
+    blocks.forEach(function (block) {
+      block.rows.forEach(function (tr) { desiredIds.push(tr.dataset.rowId); });
     });
     var currentIds = dataRows.map(function (tr) { return tr.dataset.rowId; });
     if (desiredIds.join(",") === currentIds.join(",")) return;
@@ -2228,17 +2274,33 @@
     Array.prototype.forEach.call(tbody.querySelectorAll("tr.sucursal-sep"), function (tr) { tr.remove(); });
 
     var frag = document.createDocumentFragment();
-    order.forEach(function (g) {
-      var rows = byGroup[g];
-      if (!rows || !rows.length) return;
-      var colors = SUCURSAL_GROUP_COLORS[g] || SUCURSAL_GROUP_COLORS.OTRAS;
+    blocks.forEach(function (block) {
+      var rows = block.rows;
+      var colors = SUCURSAL_GROUP_COLORS[block.sucursal] || SUCURSAL_GROUP_COLORS.OTRAS;
 
       var sep = document.createElement("tr");
       sep.className = "sucursal-sep";
       sep.style.setProperty("--group-band", colors.band);
       var td = document.createElement("td");
-      td.colSpan = 7;
-      td.textContent = g + "   ·   " + rows.length + (rows.length === 1 ? " unidad" : " unidades");
+      td.colSpan = 10;
+
+      var inner = document.createElement("div");
+      inner.className = "sucursal-sep-inner";
+
+      var chkGroup = document.createElement("input");
+      chkGroup.type = "checkbox";
+      chkGroup.className = "group-select";
+      chkGroup.checked = rows.every(function (tr) { return tr.querySelector(".row-select").checked; });
+      chkGroup.addEventListener("change", function () {
+        rows.forEach(function (tr) { tr.querySelector(".row-select").checked = chkGroup.checked; });
+      });
+      inner.appendChild(chkGroup);
+
+      var label = document.createElement("span");
+      label.textContent = block.sucursal + " " + block.sub + "   ·   " + rows.length + (rows.length === 1 ? " unidad" : " unidades");
+      inner.appendChild(label);
+
+      td.appendChild(inner);
       sep.appendChild(td);
       frag.appendChild(sep);
 
@@ -2259,998 +2321,1245 @@
   var FLEET_SEED = [
   {
     "unidad": "TR52",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "T7A",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T8A",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "E29",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E87",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E21",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E6",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E71",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E4",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E8",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E20",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "PR1050",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E101",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E7",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E25",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "RABON"
   },
   {
     "unidad": "T6A",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T7B",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T20",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T19",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T17",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T18",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T5A",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T16",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T8B",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ21",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ22",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T6B",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T5B",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T8C",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T7C",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T23",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T24",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T13",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T14",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D7657",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7635",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7639",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7651",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7770",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "E34",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E45",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E1",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E50",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E78",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E90",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E67",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TT4",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E15",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E19",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "T89",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T66",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T65",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T59",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T58",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T54",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T53",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T44",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T43",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T32A",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T33",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T42",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T41",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T26",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T32B",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D1723",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D3038",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D3039",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D3070",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D5025",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7695",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7676",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7678",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7702",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7694",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "FZN4718A",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "FZN4718B",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "FZN4853",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "T8D FZN4853",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TR1 FZN4625",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR3 FZN4759",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR8 FZN4854",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR5 FZN4060",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR6 FZN5336",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR7 FZN5338",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR9 FZN5337",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TJ1",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ6",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ8",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ9",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ10",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ11",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ12",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ13",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TE01",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ7",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "T11B",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ09",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ10",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ11",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ12",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ13",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ24",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ25",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ26",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ27",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ28",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ29",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ32",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ33",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ34",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ35",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ36",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ37",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ38",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ39",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D3826",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D4041",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D4032",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D4054",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "DC011",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "DC023",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0046",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0032",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "DC037",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "DC039",
-    "sucursal": "JEQUE"
+    "sucursal": "REVUSA-JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "TJ07 FZN5177",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ08 FZN5178",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ09 FZN5179",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ10 FZN5180",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TE01 FZN5181",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ22",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ12 FZN5183",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TR4 FZN5205",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ13 FZN5206",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ27 FZN5207",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "PR1050 FZN5208",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ9 FZN5209",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ52 FZN5210",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TQJ28 FZN5177",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ29 FZN5177",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ38 FZN5178",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ39 FZN5178",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ24 FZN5179",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ25 FZN5179",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ26 FZN5180",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ27 FZN5180",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ36 FZN5181",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ37 FZN5181",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ32 FZN5183",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ33 FZN5183",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T23 FZN5205",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T24 FZN5205",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ34 FZN5206",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ35 FZN5206",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T24 FZN5207",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T23 FZN5207",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ07 FZN5208",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ08 FZN5208",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ24 FZN5209",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ25 FZN5209",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T23 FZN5210",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T24 FZN5210",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D4023",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D4022",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D4043",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D4050",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0052",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0044",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0025",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0047",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0027",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0043",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0042",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0064",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D0028",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D2089",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "TQ00",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ99",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T76",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "T77",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D7619",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "TJ4",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "HILUX 2022",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "CAMIONETA"
   },
   {
     "unidad": "FRONTIER 2015",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "PICKUP"
   },
   {
     "unidad": "TJ14",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TJ15",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TT3",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TQ34",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ35",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D0749",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "PENDIENTE 4",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ36",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQT4",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D3298",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D7008",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D3102",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "TQT5",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQT6",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D1835",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "E80",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TQ30",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQ31",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "E81",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E82",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "TQ32",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQT1",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D1839",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D1404",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "D1843",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "TUCSON 2019",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "CAMIONETA"
   },
   {
     "unidad": "SIERRA 2021",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "PICKUP"
   },
   {
     "unidad": "TQT3",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "PENDIENTE 21",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "PENDIENTE 22",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "E4626",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E4625",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA-MAFASA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E4627",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA-MAFASA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E4629",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA-MAFASA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E4628",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA-MAFASA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E9",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "E8A",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "FORD AUX VIAL",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "CAMIONETA"
   },
   {
     "unidad": "TQT2",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D7610",
-    "sucursal": "ARGO"
+    "sucursal": "ARGO",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "TT2",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TRACTOCAMION"
   },
   {
     "unidad": "HILUX 2015",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "CAMIONETA"
   },
   {
     "unidad": "TQ",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "FORD 2015",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "CAMIONETA"
   },
   {
     "unidad": "NISSAN 2017",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "CAMIONETA"
   },
   {
     "unidad": "TT1",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR11",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "PORCHE GRIS",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "AUTOMOVIL"
   },
   {
     "unidad": "TQJ18",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ19",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ20",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ21",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ23",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ22",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ30",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "TQJ31",
-    "sucursal": "JEQUE"
+    "sucursal": "JEQUE",
+    "tipoUnidad": "TANQUE"
   },
   {
     "unidad": "D7460",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "DOLLY"
   },
   {
     "unidad": "TT6",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TT5",
-    "sucursal": "TORCH"
+    "sucursal": "TORCH",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "TR10",
-    "sucursal": "REVUSA MTY"
+    "sucursal": "REVUSA-MTY",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "FZN4214",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "TORTON"
   },
   {
     "unidad": "RAM ROJA",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "CAMIONETA"
   },
   {
     "unidad": "02",
-    "sucursal": "REVUSA"
+    "sucursal": "REVUSA",
+    "tipoUnidad": "AUTOMOVIL"
   }
 ];
 
   FLEET_SEED.forEach(function (u) {
     tbody.appendChild(createRowElement({
       id: generateId(), unidad: u.unidad, tipo: "Propio", contenedor: "", contenedor2: "",
-      ubicacion: "", status: "En tránsito", cliente: "", sucursal: u.sucursal
+      ubicacion: "", status: "En tránsito", cliente: "", sucursal: u.sucursal, tipoUnidad: u.tipoUnidad
     }));
   });
   regroupRows();
@@ -3489,15 +3798,21 @@
       var headerHeight = 190;
       var tableHeaderHeight = 44;
       var footerHeight = 56;
-      // Group rows into the same sucursal sections shown on screen, each
-      // with its own colored band — collectRows() already returns them in
-      // that order since regroupRows() keeps the live table sorted that way.
+      // Group rows into the same sucursal + tipo (TANQUES/TRACTOS/OTROS)
+      // sections shown on screen, each with its own colored band —
+      // collectRows() already returns them in that order since
+      // regroupRows() keeps the live table sorted that way.
       var groupBandHeight = 32;
       var groupBlocks = [];
       rows.forEach(function (r) {
         var g = sucursalGroupOf(r.sucursal);
+        var sub = tipoSubgroupOf(r.tipoUnidad);
         var last = groupBlocks[groupBlocks.length - 1];
-        if (last && last.group === g) { last.rows.push(r); } else { groupBlocks.push({ group: g, rows: [r] }); }
+        if (last && last.group === g && last.sub === sub) {
+          last.rows.push(r);
+        } else {
+          groupBlocks.push({ group: g, sub: sub, rows: [r] });
+        }
       });
       var rowsHeight = rows.reduce(function (sum, r) { return sum + rowH(r); }, 0);
       var bandsHeight = groupBlocks.length * groupBandHeight;
@@ -3563,7 +3878,7 @@
           ctx.fillStyle = "#FFFFFF";
           ctx.font = "bold 13px Arial";
           ctx.fillText(
-            block.group + "   ·   " + block.rows.length + (block.rows.length === 1 ? " unidad" : " unidades"),
+            block.group + " " + block.sub + "   ·   " + block.rows.length + (block.rows.length === 1 ? " unidad" : " unidades"),
             colX[0], y + 21
           );
           y += groupBandHeight;

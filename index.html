@@ -130,6 +130,16 @@
   .contenedor-wrap { display: flex; flex-direction: column; gap: 4px; }
   .contenedor-wrap input { font-size: 13px; }
   .contenedor-wrap input.contenedor2 { font-size: 12px; color: #6B7280; }
+  .contenedor-main-row { display: flex; gap: 4px; align-items: center; }
+  .contenedor-main-row input { flex: 1; min-width: 0; }
+  .btn-asignar-remolque {
+    flex: none; width: 24px; height: 24px; border-radius: 6px; border: none;
+    background: #DCFCE7; color: #16A34A; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .btn-asignar-remolque:hover { background: #BBF7D0; }
+  :root[data-theme="dark"] .btn-asignar-remolque { background: #052e1f; color: #4ADE80; }
+  :root[data-theme="dark"] .btn-asignar-remolque:hover { background: #064e3b; }
 
   input[type=text], select {
     width: 100%;
@@ -657,6 +667,17 @@
     <div class="modal-actions">
       <button type="button" class="btn-reset" id="cancelAddCliente">Cancelar</button>
       <button type="button" class="btn-capture" id="confirmAddCliente">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalAsignarRemolque" hidden>
+  <div class="modal-card">
+    <h3>Asignar remolque</h3>
+    <p class="preview-hint" id="remolqueModalHint"></p>
+    <div class="status-list" id="remolqueOptionsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-reset" id="cancelAsignarRemolque">Cerrar</button>
     </div>
   </div>
 </div>
@@ -2170,7 +2191,22 @@
     inpContenedor2.dataset.field = "contenedor2";
     inpContenedor2.value = rowData.contenedor2 || "";
     inpContenedor2.addEventListener("input", scheduleWrite);
-    contenedorWrap.appendChild(inpContenedor);
+
+    var contenedorMainRow = document.createElement("div");
+    contenedorMainRow.className = "contenedor-main-row";
+    var btnAsignarRemolque = document.createElement("button");
+    btnAsignarRemolque.type = "button";
+    btnAsignarRemolque.className = "btn-asignar-remolque";
+    btnAsignarRemolque.title = "Elegir un tanque/remolque ya registrado en la misma sucursal";
+    btnAsignarRemolque.innerHTML =
+      '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+    btnAsignarRemolque.addEventListener("click", function () {
+      openRemolquePicker(tr, inpContenedor);
+    });
+    contenedorMainRow.appendChild(inpContenedor);
+    contenedorMainRow.appendChild(btnAsignarRemolque);
+
+    contenedorWrap.appendChild(contenedorMainRow);
     contenedorWrap.appendChild(inpContenedor2);
     tdContenedor.appendChild(contenedorWrap);
     tr.appendChild(tdContenedor);
@@ -2317,6 +2353,76 @@
       btn.classList.toggle("active", btn.dataset.page === activeFlotaPage);
     });
   }
+
+  // --- Asignar remolque: pick a tanque already registered in the same
+  // sucursal instead of typing its number by hand. Scoped to sucursal
+  // because a tracto can only realistically pull a trailer from its own
+  // vehicle park. ---
+  var modalAsignarRemolque = document.getElementById("modalAsignarRemolque");
+  var remolquePickerTarget = null;
+
+  function openRemolquePicker(sourceTr, targetInput) {
+    remolquePickerTarget = targetInput;
+    var sucursalVal = sourceTr.querySelector('input[data-field="sucursal"]').value;
+    var group = sucursalGroupOf(sucursalVal);
+    var sourceId = sourceTr.dataset.rowId;
+    var allRows = collectRows();
+
+    var hint = document.getElementById("remolqueModalHint");
+    var list = document.getElementById("remolqueOptionsList");
+    list.innerHTML = "";
+
+    if (!sucursalVal.trim()) {
+      hint.textContent = "Esta unidad no tiene sucursal asignada todavía — asígnale una (⚙️ Editar detalles) para ver sus tanques.";
+      modalAsignarRemolque.hidden = false;
+      return;
+    }
+
+    var candidates = allRows.filter(function (r) {
+      return r.id !== sourceId && tipoSubgroupOf(r.tipoUnidad) === "TANQUES" && sucursalGroupOf(r.sucursal) === group;
+    });
+    candidates.sort(function (a, b) { return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" }); });
+
+    var inUseBy = {};
+    allRows.forEach(function (r) {
+      [r.contenedor, r.contenedor2].forEach(function (v) {
+        if (!v) return;
+        (inUseBy[v] = inUseBy[v] || []).push(r.unidad);
+      });
+    });
+
+    hint.textContent = candidates.length
+      ? "Tanques registrados en " + group + " (" + candidates.length + "):"
+      : "No hay ninguna unidad tipo Tanque registrada todavía en " + group + ".";
+
+    candidates.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var label = document.createElement("span");
+      var usedElsewhere = (inUseBy[c.unidad] || []).filter(function (u) { return u !== sourceTr.querySelector(".unidad-text").textContent; });
+      label.textContent = c.unidad + (usedElsewhere.length ? "  ·  ya asignado a " + usedElsewhere.join(", ") : "");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      btn.textContent = "Elegir";
+      btn.addEventListener("click", function () {
+        remolquePickerTarget.value = c.unidad;
+        remolquePickerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+        clearTimeout(writeTimer);
+        writeFullState();
+        modalAsignarRemolque.hidden = true;
+      });
+      row.appendChild(label);
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+
+    modalAsignarRemolque.hidden = false;
+  }
+
+  document.getElementById("cancelAsignarRemolque").addEventListener("click", function () {
+    modalAsignarRemolque.hidden = true;
+  });
 
   function regroupRows() {
     var dataRows = Array.prototype.filter.call(tbody.children, function (el) {

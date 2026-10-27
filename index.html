@@ -354,6 +354,24 @@
   .tipo-unidad-mini-table td { padding: 6px 8px; border-top: 1px solid #E5EFF3; }
   .tipo-unidad-mini-table tr:first-child td { border-top: none; }
 
+  /* --- Mantenimiento tab: units in "Mantenimiento" status, with an
+     editable tiempo de entrega field for the maintenance lead --- */
+  .mantenimiento-list { padding: 18px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .mantenimiento-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    border: 1px solid #D7E6ED; border-radius: 12px; padding: 14px 18px; background: #F5FAFC;
+  }
+  .mantenimiento-info { display: flex; flex-direction: column; gap: 3px; min-width: 180px; }
+  .mantenimiento-unidad { font-weight: 700; color: var(--brand); font-size: 15px; }
+  .mantenimiento-meta { font-size: 12px; color: #6B7280; }
+  .mantenimiento-entrega { display: flex; flex-direction: column; gap: 4px; min-width: 240px; flex: 1; max-width: 360px; }
+  .mantenimiento-entrega label {
+    font-size: 11px; font-weight: 700; color: #7C3AED; text-transform: uppercase; letter-spacing: .03em;
+  }
+  .mantenimiento-entrega input {
+    padding: 9px 10px; border-radius: 8px; border: 1px solid #E5E7EB; font: inherit; color: #1F2937;
+  }
+
   /* --- client modules dock: quick-launch buttons for per-client service logs --- */
   .client-modules-dock {
     position: fixed; right: 18px; top: 130px; display: flex; flex-direction: column; gap: 10px; z-index: 40;
@@ -492,6 +510,10 @@
   :root[data-theme="dark"] .tipo-unidad-unit-count { color: #7DD3FC; }
   :root[data-theme="dark"] .tipo-unidad-empty { color: #64748B; }
   :root[data-theme="dark"] .tipo-unidad-mini-table td { border-top-color: #334155; }
+  :root[data-theme="dark"] .mantenimiento-card { background: #1A2332; border-color: #334155; }
+  :root[data-theme="dark"] .mantenimiento-meta { color: #94A3B8; }
+  :root[data-theme="dark"] .mantenimiento-entrega label { color: #C4B5FD; }
+  :root[data-theme="dark"] .mantenimiento-entrega input { background: #0F172A; border-color: #334155; color: #E5E7EB; }
 </style>
 </head>
 <body>
@@ -527,6 +549,7 @@
       <button class="tab-btn" id="tabClientes" type="button">Clientes</button>
       <button class="tab-btn" id="tabSucursales" type="button">Sucursales</button>
       <button class="tab-btn" id="tabTipoUnidad" type="button">Tracto / Remolques</button>
+      <button class="tab-btn" id="tabMantenimiento" type="button">Mantenimiento</button>
     </div>
 
     <div id="panelEstatus">
@@ -563,6 +586,7 @@
               <th class="w-cliente">CLIENTE</th>
               <th class="w-sucursal col-hideable">SUCURSAL</th>
               <th class="w-tipo-unidad col-hideable">TIPO DE UNIDAD</th>
+              <th class="col-hideable">TIEMPO DE ENTREGA</th>
             </tr>
           </thead>
           <tbody id="rowsBody"></tbody>
@@ -605,6 +629,13 @@
         <span class="clientes-count" id="tipoUnidadCount">0 categorías</span>
       </div>
       <div class="tipo-unidad-grid" id="tipoUnidadGrid"></div>
+    </div>
+
+    <div id="panelMantenimiento" hidden>
+      <div class="clientes-toolbar">
+        <span class="clientes-count" id="mantenimientoCount">0 unidades en mantenimiento</span>
+      </div>
+      <div class="mantenimiento-list" id="mantenimientoBody"></div>
     </div>
   </div>
 
@@ -1052,6 +1083,12 @@
           existingById[tr.dataset.rowId] = tr;
         });
         var seenIds = {};
+        // Tiempo de entrega is edited from a separate visible input in the
+        // Mantenimiento tab, not the hidden one this loop normally guards
+        // via document.activeElement — so while that tab has focus, skip
+        // syncing tiempoEntrega entirely this round instead of clobbering
+        // whatever's mid-keystroke there with stale remote data.
+        var mantenimientoActive = document.activeElement && panelMantenimiento.contains(document.activeElement);
 
         data.rows.forEach(function (r, idx) {
           var hasRealId = !!r.id;
@@ -1085,6 +1122,7 @@
           var inpCliente = tr.querySelector('input[data-field="cliente"]');
           var inpSucursal = tr.querySelector('input[data-field="sucursal"]');
           var inpTipoUnidad = tr.querySelector('input[data-field="tipoUnidad"]');
+          var inpTiempoEntrega = tr.querySelector('input[data-field="tiempoEntrega"]');
           if (tdUnidad.textContent !== r.unidad) tdUnidad.textContent = r.unidad;
           if (document.activeElement !== inpOperador && inpOperador.value !== (r.operador || "")) {
             inpOperador.value = r.operador || "";
@@ -1124,6 +1162,9 @@
           if (document.activeElement !== inpTipoUnidad && inpTipoUnidad.value !== (r.tipoUnidad || "")) {
             inpTipoUnidad.value = r.tipoUnidad || "";
           }
+          if (!mantenimientoActive && document.activeElement !== inpTiempoEntrega && inpTiempoEntrega.value !== (r.tiempoEntrega || "")) {
+            inpTiempoEntrega.value = r.tiempoEntrega || "";
+          }
           updateAvailabilityFromStatus(tr, sel.value);
         });
 
@@ -1137,6 +1178,7 @@
 
         updateUnidadesLabel();
         regroupRows();
+        if (!panelMantenimiento.hidden) renderMantenimientoTab();
         if (neededMigrationWrite) {
           clearTimeout(writeTimer);
           writeFullState();
@@ -1201,7 +1243,8 @@
         status: tr.querySelector('select[data-field="status"]').value,
         cliente: tr.querySelector('input[data-field="cliente"]').value,
         sucursal: tr.querySelector('input[data-field="sucursal"]').value,
-        tipoUnidad: tr.querySelector('input[data-field="tipoUnidad"]').value
+        tipoUnidad: tr.querySelector('input[data-field="tipoUnidad"]').value,
+        tiempoEntrega: tr.querySelector('input[data-field="tiempoEntrega"]').value
       };
     });
   }
@@ -1676,6 +1719,70 @@
     });
   }
 
+  // --- Mantenimiento tab: units currently in "Mantenimiento" status, with
+  // an editable "Tiempo de entrega" field for the maintenance lead to fill
+  // in. Writes straight into the matching row's hidden tiempoEntrega input
+  // in the main table, so it syncs through the normal writeFullState path. ---
+  function renderMantenimientoTab() {
+    var body = document.getElementById("mantenimientoBody");
+    // Don't rebuild out from under someone mid-keystroke in this tab.
+    if (document.activeElement && body.contains(document.activeElement)) return;
+    body.innerHTML = "";
+
+    var rows = collectRows().filter(function (r) { return r.status === "Mantenimiento"; });
+    rows.sort(function (a, b) { return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" }); });
+
+    document.getElementById("mantenimientoCount").textContent =
+      rows.length + (rows.length === 1 ? " unidad en mantenimiento" : " unidades en mantenimiento");
+
+    if (!rows.length) {
+      var empty = document.createElement("div");
+      empty.className = "clientes-empty";
+      empty.textContent = "No hay unidades en mantenimiento en este momento.";
+      body.appendChild(empty);
+      return;
+    }
+
+    rows.forEach(function (r) {
+      var card = document.createElement("div");
+      card.className = "mantenimiento-card";
+
+      var info = document.createElement("div");
+      info.className = "mantenimiento-info";
+      var nameEl = document.createElement("span");
+      nameEl.className = "mantenimiento-unidad";
+      nameEl.textContent = r.unidad;
+      info.appendChild(nameEl);
+      var metaBits = [r.sucursal, [r.contenedor, r.contenedor2].filter(function (v) { return v; }).join(" / "), r.operador]
+        .filter(function (v) { return v; });
+      var metaEl = document.createElement("span");
+      metaEl.className = "mantenimiento-meta";
+      metaEl.textContent = metaBits.length ? metaBits.join("  ·  ") : "Sin sucursal/tanque/operador registrado";
+      info.appendChild(metaEl);
+      card.appendChild(info);
+
+      var entregaWrap = document.createElement("div");
+      entregaWrap.className = "mantenimiento-entrega";
+      var label = document.createElement("label");
+      label.textContent = "Tiempo de entrega";
+      var inp = document.createElement("input");
+      inp.type = "text";
+      inp.placeholder = "Ej. 3 días, 15/11, en espera de refacción…";
+      inp.value = r.tiempoEntrega || "";
+      inp.addEventListener("input", function () {
+        var tr = tbody.querySelector('tr[data-row-id="' + r.id + '"]');
+        if (!tr) return;
+        tr.querySelector('input[data-field="tiempoEntrega"]').value = inp.value;
+        scheduleWrite();
+      });
+      entregaWrap.appendChild(label);
+      entregaWrap.appendChild(inp);
+      card.appendChild(entregaWrap);
+
+      body.appendChild(card);
+    });
+  }
+
   // --- client modules: per-client service log tables (dates/durations/status) ---
   function computeDuration(startStr, endStr) {
     if (!startStr || !endStr) return "";
@@ -2029,6 +2136,7 @@
   var panelClientes = document.getElementById("panelClientes");
   var panelSucursales = document.getElementById("panelSucursales");
   var panelTipoUnidad = document.getElementById("panelTipoUnidad");
+  var panelMantenimiento = document.getElementById("panelMantenimiento");
 
   function createRowElement(rowData) {
     var tr = document.createElement("tr");
@@ -2303,6 +2411,7 @@
       applySelectColors(sel);
       updateAvailabilityFromStatus(tr, sel.value);
       scheduleWrite();
+      if (!panelMantenimiento.hidden) renderMantenimientoTab();
     });
     tdStatus.appendChild(sel);
     tr.appendChild(tdStatus);
@@ -2353,6 +2462,20 @@
     });
     tdTipoUnidad.appendChild(inpTipoUnidad);
     tr.appendChild(tdTipoUnidad);
+
+    // Tiempo de entrega: only shown/edited from the Mantenimiento tab, but
+    // lives here as a real synced field so it round-trips like any other —
+    // the Mantenimiento tab writes straight into this hidden input.
+    var tdTiempoEntrega = document.createElement("td");
+    tdTiempoEntrega.className = "col-hideable";
+    var inpTiempoEntrega = document.createElement("input");
+    inpTiempoEntrega.type = "text";
+    inpTiempoEntrega.placeholder = "Tiempo de entrega";
+    inpTiempoEntrega.dataset.field = "tiempoEntrega";
+    inpTiempoEntrega.value = rowData.tiempoEntrega || "";
+    inpTiempoEntrega.addEventListener("input", scheduleWrite);
+    tdTiempoEntrega.appendChild(inpTiempoEntrega);
+    tr.appendChild(tdTiempoEntrega);
 
     return tr;
   }
@@ -3904,9 +4027,10 @@
   var tabClientes = document.getElementById("tabClientes");
   var tabSucursales = document.getElementById("tabSucursales");
   var tabTipoUnidad = document.getElementById("tabTipoUnidad");
+  var tabMantenimiento = document.getElementById("tabMantenimiento");
   function activateTab(tabBtn, panel) {
-    [tabEstatus, tabClientes, tabSucursales, tabTipoUnidad].forEach(function (b) { b.classList.toggle("active", b === tabBtn); });
-    [panelEstatus, panelClientes, panelSucursales, panelTipoUnidad].forEach(function (p) { p.hidden = p !== panel; });
+    [tabEstatus, tabClientes, tabSucursales, tabTipoUnidad, tabMantenimiento].forEach(function (b) { b.classList.toggle("active", b === tabBtn); });
+    [panelEstatus, panelClientes, panelSucursales, panelTipoUnidad, panelMantenimiento].forEach(function (p) { p.hidden = p !== panel; });
   }
   tabEstatus.addEventListener("click", function () { activateTab(tabEstatus, panelEstatus); });
   tabClientes.addEventListener("click", function () {
@@ -3920,6 +4044,10 @@
   tabTipoUnidad.addEventListener("click", function () {
     activateTab(tabTipoUnidad, panelTipoUnidad);
     renderTipoUnidadTab();
+  });
+  tabMantenimiento.addEventListener("click", function () {
+    activateTab(tabMantenimiento, panelMantenimiento);
+    renderMantenimientoTab();
   });
 
   // --- add-client modal ---

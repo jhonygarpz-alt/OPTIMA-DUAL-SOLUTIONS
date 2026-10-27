@@ -2615,16 +2615,13 @@
       });
     });
 
-    var desiredIds = [];
-    blocks.forEach(function (block) {
-      block.rows.forEach(function (tr) { desiredIds.push(tr.dataset.rowId); });
-    });
-    var currentIds = dataRows.map(function (tr) { return tr.dataset.rowId; });
-    if (desiredIds.join(",") === currentIds.join(",")) {
-      applyFlotaPageVisibility();
-      return;
-    }
-
+    // Always rebuild — section header rows carry no data-row-id, so a
+    // "nothing changed, skip the rebuild" shortcut here can't see them and
+    // leaves stale/orphaned headers behind whenever the actual data rows
+    // get swapped out from under it (e.g. every page load, once the real
+    // synced rows replace the local bootstrap rows wholesale because their
+    // ids never match). Re-sorting ~250 rows every call is cheap enough
+    // that correctness wins over the micro-optimization.
     Array.prototype.forEach.call(tbody.querySelectorAll("tr.sucursal-sep"), function (tr) { tr.remove(); });
 
     var frag = document.createDocumentFragment();
@@ -2637,7 +2634,7 @@
       sep.dataset.sub = block.sub;
       sep.style.setProperty("--group-band", colors.band);
       var td = document.createElement("td");
-      td.colSpan = 10;
+      td.colSpan = 12;
 
       var inner = document.createElement("div");
       inner.className = "sucursal-sep-inner";

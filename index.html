@@ -566,6 +566,9 @@
       <div class="toolbar">
         <button class="btn-reset btn-small" id="btnAddUnit" type="button">+ Agregar unidad</button>
         <button class="btn-reset btn-small" id="btnAddStatus" type="button">+ Nuevo estatus</button>
+        <select class="btn-reset btn-small" id="filtroEstatusSelect">
+          <option value="">Filtrar por estatus (todos)</option>
+        </select>
         <div class="flota-page-switcher">
           <button class="flota-page-btn" type="button" data-page="TRACTOS">Página 1 · Tractos</button>
           <button class="flota-page-btn" type="button" data-page="TANQUES">Página 2 · Tanques</button>
@@ -1300,6 +1303,7 @@
       rebuildStatusOptionsFor(sel);
       applySelectColors(sel);
     });
+    refreshFiltroEstatusSelect();
   }
 
   function addStatusOption(label) {
@@ -2383,6 +2387,7 @@
       updateAvailabilityFromStatus(tr, sel.value);
       scheduleWrite();
       if (!panelMantenimiento.hidden) renderMantenimientoTab();
+      if (activeFlotaStatusFilter) applyFlotaPageVisibility();
     });
     statusWrap.appendChild(sel);
 
@@ -2497,19 +2502,52 @@
   // never silently disappears). Pure front-end filter — every row still
   // exists and syncs regardless of which page is active.
   var activeFlotaPage = "TRACTOS";
+  // "" = no filter (all statuses). Set from the "Filtrar por estatus" select.
+  var activeFlotaStatusFilter = "";
 
   function applyFlotaPageVisibility() {
     var currentSub = null;
     Array.prototype.forEach.call(tbody.children, function (el) {
       if (el.classList && el.classList.contains("sucursal-sep")) {
         currentSub = el.dataset.sub;
+        el.hidden = currentSub !== activeFlotaPage;
+        return;
       }
-      el.hidden = currentSub !== activeFlotaPage;
+      var pageVisible = currentSub === activeFlotaPage;
+      var statusVisible = true;
+      if (activeFlotaStatusFilter) {
+        var sel = el.querySelector && el.querySelector('select[data-field="status"]');
+        statusVisible = !!sel && sel.value === activeFlotaStatusFilter;
+      }
+      el.hidden = !(pageVisible && statusVisible);
     });
     Array.prototype.forEach.call(document.querySelectorAll(".flota-page-btn"), function (btn) {
       btn.classList.toggle("active", btn.dataset.page === activeFlotaPage);
     });
   }
+
+  // --- Filtrar por estatus: native select in the toolbar, options mirror
+  // the dynamic statusOptions list (custom statuses included). ---
+  function refreshFiltroEstatusSelect() {
+    var sel = document.getElementById("filtroEstatusSelect");
+    var currentValue = sel.value;
+    sel.innerHTML = "";
+    var allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = "Filtrar por estatus (todos)";
+    sel.appendChild(allOpt);
+    statusOptions.forEach(function (opt) {
+      var o = document.createElement("option");
+      o.value = opt.label;
+      o.textContent = opt.label;
+      sel.appendChild(o);
+    });
+    if (statusOptions.some(function (o) { return o.label === currentValue; })) sel.value = currentValue;
+  }
+  document.getElementById("filtroEstatusSelect").addEventListener("change", function (e) {
+    activeFlotaStatusFilter = e.target.value;
+    applyFlotaPageVisibility();
+  });
 
   // --- Asignar remolque: pick a tanque already registered in the same
   // sucursal instead of typing its number by hand. Scoped to sucursal
@@ -3940,6 +3978,7 @@
     }));
   });
   regroupRows();
+  refreshFiltroEstatusSelect();
 
   function addUnit(nombre, tipo) {
     tbody.appendChild(createRowElement({ id: generateId(), unidad: nombre, tipo: tipo, ubicacion: "", status: "En tránsito", cliente: "" }));

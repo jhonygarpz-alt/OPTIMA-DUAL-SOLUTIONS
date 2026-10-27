@@ -2621,13 +2621,30 @@
       });
     });
 
-    // Always rebuild — section header rows carry no data-row-id, so a
-    // "nothing changed, skip the rebuild" shortcut here can't see them and
-    // leaves stale/orphaned headers behind whenever the actual data rows
-    // get swapped out from under it (e.g. every page load, once the real
-    // synced rows replace the local bootstrap rows wholesale because their
-    // ids never match). Re-sorting ~250 rows every call is cheap enough
-    // that correctness wins over the micro-optimization.
+    // Skip the rebuild when the table is already in the right shape —
+    // moving a row's <tr> (even via a fragment) steals focus from whatever
+    // input inside it someone's mid-keystroke in, and this runs on every
+    // ~4s poll, so reordering unconditionally breaks ordinary typing. The
+    // signature has to include the header rows themselves (not just data
+    // row order), because they carry no data-row-id and an earlier version
+    // of this check — comparing row order alone — couldn't tell they'd
+    // gone stale, leaving them orphaned at the top whenever the real synced
+    // rows replace the local bootstrap rows wholesale (their ids never
+    // match, so every row gets swapped at once on first sync).
+    var desiredSignature = [];
+    blocks.forEach(function (block) {
+      desiredSignature.push("SEP:" + block.sucursal + ":" + block.sub);
+      block.rows.forEach(function (tr) { desiredSignature.push(tr.dataset.rowId); });
+    });
+    var currentSignature = Array.prototype.map.call(tbody.children, function (el) {
+      if (el.classList.contains("sucursal-sep")) return "SEP:" + el.dataset.sucursal + ":" + el.dataset.sub;
+      return el.dataset.rowId || null;
+    }).filter(function (v) { return v !== null; });
+    if (desiredSignature.join("|") === currentSignature.join("|")) {
+      applyFlotaPageVisibility();
+      return;
+    }
+
     Array.prototype.forEach.call(tbody.querySelectorAll("tr.sucursal-sep"), function (tr) { tr.remove(); });
 
     var frag = document.createDocumentFragment();
@@ -2637,6 +2654,7 @@
 
       var sep = document.createElement("tr");
       sep.className = "sucursal-sep";
+      sep.dataset.sucursal = block.sucursal;
       sep.dataset.sub = block.sub;
       sep.style.setProperty("--group-band", colors.band);
       var td = document.createElement("td");

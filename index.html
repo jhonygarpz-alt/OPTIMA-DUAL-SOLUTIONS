@@ -112,7 +112,7 @@
   thead th { color: #fff; text-align: left; font-weight: 600; padding: 12px 16px; }
   thead th.w-unidad { width: 150px; }
   thead th.w-contenedor { width: 190px; }
-  thead th.w-status { width: 192px; }
+  thead th.w-status { width: 220px; }
   thead th.w-cliente { width: 208px; }
   thead th.w-sucursal { width: 170px; }
   thead th.w-tipo-unidad { width: 160px; }
@@ -127,6 +127,8 @@
   tbody tr:nth-child(even) { background: #fff; }
   tbody td { padding: 8px; border-top: 1px solid #E5EFF3; }
   td.unidad { font-weight: 700; color: var(--brand); padding-left: 16px; white-space: nowrap; }
+  .status-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .status-wrap input.ubicacion-field { font-size: 12px; }
   .contenedor-wrap { display: flex; flex-direction: column; gap: 4px; }
   .contenedor-wrap input { font-size: 13px; }
   .contenedor-wrap input.contenedor2,
@@ -581,7 +583,6 @@
               <th class="w-contenedor">TANQUE</th>
               <th class="w-origen">ORIGEN</th>
               <th class="w-destino">DESTINO</th>
-              <th class="col-hideable">UBICACIÓN ACTUAL</th>
               <th class="w-status">STATUS ACTUAL</th>
               <th class="w-cliente">CLIENTE</th>
               <th class="w-sucursal col-hideable">SUCURSAL</th>
@@ -2367,11 +2368,30 @@
     tdDestino.appendChild(inpDestino);
     tr.appendChild(tdDestino);
 
-    var tdUbic = document.createElement("td");
-    tdUbic.className = "col-hideable";
+    var tdStatus = document.createElement("td");
+    var statusWrap = document.createElement("div");
+    statusWrap.className = "status-wrap";
+
+    var sel = document.createElement("select");
+    sel.dataset.field = "status";
+    rebuildStatusOptionsFor(sel);
+    sel.value = rowData.status || "En tránsito";
+    applySelectColors(sel);
+    updateAvailabilityFromStatus(tr, sel.value);
+    sel.addEventListener("change", function () {
+      applySelectColors(sel);
+      updateAvailabilityFromStatus(tr, sel.value);
+      scheduleWrite();
+      if (!panelMantenimiento.hidden) renderMantenimientoTab();
+    });
+    statusWrap.appendChild(sel);
+
+    // Ubicación actual lives right under the status dropdown, not as its
+    // own column — one less column to scan, but still a real synced field.
     var inpUbic = document.createElement("input");
     inpUbic.type = "text";
-    inpUbic.placeholder = "Ej. Puebla, MEX-CDMX km 120 o 19.4326, -99.1332";
+    inpUbic.className = "ubicacion-field";
+    inpUbic.placeholder = "Ubicación actual";
     inpUbic.dataset.field = "ubicacion";
     inpUbic.value = rowData.ubicacion || "";
     inpUbic.addEventListener("input", scheduleWrite);
@@ -2397,23 +2417,9 @@
         delete inpUbic.dataset.pendingValue;
       });
     });
-    tdUbic.appendChild(inpUbic);
-    tr.appendChild(tdUbic);
+    statusWrap.appendChild(inpUbic);
 
-    var tdStatus = document.createElement("td");
-    var sel = document.createElement("select");
-    sel.dataset.field = "status";
-    rebuildStatusOptionsFor(sel);
-    sel.value = rowData.status || "En tránsito";
-    applySelectColors(sel);
-    updateAvailabilityFromStatus(tr, sel.value);
-    sel.addEventListener("change", function () {
-      applySelectColors(sel);
-      updateAvailabilityFromStatus(tr, sel.value);
-      scheduleWrite();
-      if (!panelMantenimiento.hidden) renderMantenimientoTab();
-    });
-    tdStatus.appendChild(sel);
+    tdStatus.appendChild(statusWrap);
     tr.appendChild(tdStatus);
 
     var tdCliente = document.createElement("td");
@@ -2634,7 +2640,7 @@
       sep.dataset.sub = block.sub;
       sep.style.setProperty("--group-band", colors.band);
       var td = document.createElement("td");
-      td.colSpan = 12;
+      td.colSpan = 11;
 
       var inner = document.createElement("div");
       inner.className = "sucursal-sep-inner";

@@ -107,7 +107,7 @@
   :root[data-theme="dark"] .flota-page-btn:hover { background: #334155; }
 
   .table-scroll { overflow-x: auto; }
-  table { width: 100%; min-width: 1400px; border-collapse: collapse; font-size: 14px; }
+  table { width: 100%; min-width: 1570px; border-collapse: collapse; font-size: 14px; }
   thead tr { background: #1F2937; }
   thead th { color: #fff; text-align: left; font-weight: 600; padding: 12px 16px; }
   thead th.w-unidad { width: 150px; }
@@ -118,6 +118,7 @@
   thead th.w-tipo-unidad { width: 160px; }
   thead th.w-origen { width: 170px; }
   thead th.w-destino { width: 170px; }
+  thead th.w-operador { width: 170px; }
   thead th.w-check { width: 34px; }
   td.w-check { padding-left: 14px; }
   .row-select, .group-select { width: 16px; height: 16px; cursor: pointer; }
@@ -542,6 +543,7 @@
             <tr>
               <th class="w-check"></th>
               <th class="w-unidad">UNIDAD</th>
+              <th class="w-operador">OPERADOR</th>
               <th class="w-contenedor">TANQUE</th>
               <th class="w-origen">ORIGEN</th>
               <th class="w-destino">DESTINO</th>
@@ -558,6 +560,7 @@
       <datalist id="clientesList"></datalist>
       <datalist id="sucursalesList"></datalist>
       <datalist id="tipoUnidadList"></datalist>
+      <datalist id="operadoresFlotaList"></datalist>
 
       <div class="footer-bar">
         <button class="btn-reset" id="btnReset" type="button">
@@ -862,6 +865,10 @@
   // feeds itself just like Sucursal/Cliente.
   var tipoUnidadConocidos = ["AUTOMOVIL", "CAMIONETA", "DOLLY", "PICKUP", "RABON", "TANQUE", "TORTON", "TRACTOCAMION"];
 
+  // Mutable, synced list of operador (driver) names assigned to units —
+  // feeds itself just like Sucursal/Tipo de Unidad.
+  var operadoresFlotaConocidos = [];
+
   var TIPO_COLORS = {
     "Propio": { color: "#1D4ED8", bg: "#DBEAFE" },
     "Permisionario": { color: "#B45309", bg: "#FEF3C7" }
@@ -1011,6 +1018,12 @@
           if (!panelTipoUnidad.hidden) renderTipoUnidadTab();
         }
       }
+      if (Array.isArray(data.operadoresFlotaConocidos) && data.operadoresFlotaConocidos.length) {
+        if (JSON.stringify(data.operadoresFlotaConocidos) !== JSON.stringify(operadoresFlotaConocidos)) {
+          operadoresFlotaConocidos = data.operadoresFlotaConocidos;
+          refreshOperadoresFlotaDatalist();
+        }
+      }
       if (Array.isArray(data.rows)) {
         var existingById = {};
         Array.prototype.forEach.call(tbody.querySelectorAll("tr[data-row-id]"), function (tr) {
@@ -1038,6 +1051,7 @@
           }
 
           var tdUnidad = tr.querySelector("td.unidad .unidad-text");
+          var inpOperador = tr.querySelector('input[data-field="operador"]');
           var inpContenedor = tr.querySelector('input[data-field="contenedor"]');
           var inpContenedor2 = tr.querySelector('input[data-field="contenedor2"]');
           var inpOrigen = tr.querySelector('input[data-field="origen"]');
@@ -1049,6 +1063,9 @@
           var inpSucursal = tr.querySelector('input[data-field="sucursal"]');
           var inpTipoUnidad = tr.querySelector('input[data-field="tipoUnidad"]');
           if (tdUnidad.textContent !== r.unidad) tdUnidad.textContent = r.unidad;
+          if (document.activeElement !== inpOperador && inpOperador.value !== (r.operador || "")) {
+            inpOperador.value = r.operador || "";
+          }
           if (document.activeElement !== inpContenedor && inpContenedor.value !== (r.contenedor || "")) {
             inpContenedor.value = r.contenedor || "";
           }
@@ -1144,6 +1161,7 @@
       return {
         id: tr.dataset.rowId,
         unidad: tr.querySelector(".unidad-text").textContent,
+        operador: tr.querySelector('input[data-field="operador"]').value,
         tipo: tr.querySelector('select[data-field="tipo"]').value,
         contenedor: tr.querySelector('input[data-field="contenedor"]').value,
         contenedor2: tr.querySelector('input[data-field="contenedor2"]').value,
@@ -1162,7 +1180,7 @@
   }
 
   function writeFullState() {
-    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, updatedAt: Date.now() };
+    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, operadoresFlotaConocidos: operadoresFlotaConocidos, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
     supabasePatch(body).catch(function (err) {
       console.error("Supabase write error (writeFullState):", err);
@@ -1535,6 +1553,28 @@
     tipoUnidadConocidos.push(nombre);
     tipoUnidadConocidos.sort(function (a, b) { return a.localeCompare(b, "es"); });
     refreshTipoUnidadDatalist();
+    return true;
+  }
+
+  // --- Operador de unidad: self-feeding list, same pattern as Sucursal/Tipo ---
+  function refreshOperadoresFlotaDatalist() {
+    var dl = document.getElementById("operadoresFlotaList");
+    dl.innerHTML = "";
+    operadoresFlotaConocidos.forEach(function (nombre) {
+      var o = document.createElement("option");
+      o.value = nombre;
+      dl.appendChild(o);
+    });
+  }
+
+  function registerOperadorFlotaIfNew(nombre) {
+    nombre = (nombre || "").trim();
+    if (!nombre) return false;
+    var exists = operadoresFlotaConocidos.some(function (s) { return s.toLowerCase() === nombre.toLowerCase(); });
+    if (exists) return false;
+    operadoresFlotaConocidos.push(nombre);
+    operadoresFlotaConocidos.sort(function (a, b) { return a.localeCompare(b, "es"); });
+    refreshOperadoresFlotaDatalist();
     return true;
   }
 
@@ -2098,6 +2138,21 @@
     unidadWrap.appendChild(unidadBottom);
     tdUnidad.appendChild(unidadWrap);
     tr.appendChild(tdUnidad);
+
+    var tdOperador = document.createElement("td");
+    var inpOperador = document.createElement("input");
+    inpOperador.type = "text";
+    inpOperador.placeholder = "Nombre del operador";
+    inpOperador.dataset.field = "operador";
+    inpOperador.setAttribute("list", "operadoresFlotaList");
+    inpOperador.value = rowData.operador || "";
+    inpOperador.addEventListener("input", scheduleWrite);
+    inpOperador.addEventListener("change", function () {
+      registerOperadorFlotaIfNew(inpOperador.value);
+      scheduleWrite();
+    });
+    tdOperador.appendChild(inpOperador);
+    tr.appendChild(tdOperador);
 
     var tdContenedor = document.createElement("td");
     var contenedorWrap = document.createElement("div");
@@ -3839,7 +3894,7 @@
     var now = new Date();
 
     Promise.resolve().then(function () {
-      var width = 1200;
+      var width = 1400;
       var rowHeight = 34;
       // FULL operations with a second contenedor get a taller row so both
       // numbers are shown in full, on their own lines, instead of both
@@ -3914,13 +3969,14 @@
         ctx.fillRect(0, y, width, tableHeaderHeight);
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "bold 14px Arial";
-        var colX = [26, 180, 350, 550, 760, 970];
+        var colX = [26, 180, 360, 560, 760, 980, 1190];
         ctx.fillText("UNIDAD", colX[0], y + 27);
-        ctx.fillText("TANQUE", colX[1], y + 27);
-        ctx.fillText("ORIGEN", colX[2], y + 27);
-        ctx.fillText("DESTINO", colX[3], y + 27);
-        ctx.fillText("STATUS ACTUAL", colX[4], y + 27);
-        ctx.fillText("CLIENTE", colX[5], y + 27);
+        ctx.fillText("OPERADOR", colX[1], y + 27);
+        ctx.fillText("TANQUE", colX[2], y + 27);
+        ctx.fillText("ORIGEN", colX[3], y + 27);
+        ctx.fillText("DESTINO", colX[4], y + 27);
+        ctx.fillText("STATUS ACTUAL", colX[5], y + 27);
+        ctx.fillText("CLIENTE", colX[6], y + 27);
         y += tableHeaderHeight;
 
         groupBlocks.forEach(function (block) {
@@ -3963,35 +4019,38 @@
 
             ctx.fillStyle = "#1F2937";
             ctx.font = "13px Arial";
+            var operador = r.operador && r.operador.trim() ? r.operador : "—";
+            ctx.fillText(truncateToWidth(ctx, operador, colX[2] - colX[1] - 10), colX[1], y + 22);
+
             var cont = r.contenedor && r.contenedor.trim() ? r.contenedor : "—";
-            ctx.fillText(truncateToWidth(ctx, cont, colX[2] - colX[1] - 10), colX[1], y + 22);
+            ctx.fillText(truncateToWidth(ctx, cont, colX[3] - colX[2] - 10), colX[2], y + 22);
             if (rowHasCont2(r)) {
               ctx.fillStyle = "#0D4C73";
               ctx.font = "11px Arial";
-              ctx.fillText(truncateToWidth(ctx, r.contenedor2, colX[2] - colX[1] - 10), colX[1], y + 38);
+              ctx.fillText(truncateToWidth(ctx, r.contenedor2, colX[3] - colX[2] - 10), colX[2], y + 38);
               ctx.font = "13px Arial";
               ctx.fillStyle = "#1F2937";
             }
 
             var origen = r.origen && r.origen.trim() ? r.origen : "—";
-            ctx.fillText(truncateToWidth(ctx, origen, colX[3] - colX[2] - 10), colX[2], y + 22);
+            ctx.fillText(truncateToWidth(ctx, origen, colX[4] - colX[3] - 10), colX[3], y + 22);
 
             var destino = r.destino && r.destino.trim() ? r.destino : "—";
-            ctx.fillText(truncateToWidth(ctx, destino, colX[4] - colX[3] - 10), colX[3], y + 22);
+            ctx.fillText(truncateToWidth(ctx, destino, colX[5] - colX[4] - 10), colX[4], y + 22);
 
             var info = statusInfo(r.status);
             ctx.fillStyle = info.bg;
-            roundRect(ctx, colX[4] - 8, y + 6, 172, 22, 11);
+            roundRect(ctx, colX[5] - 8, y + 6, 172, 22, 11);
             ctx.fill();
             ctx.fillStyle = info.color;
             ctx.font = "bold 12px Arial";
             var statusLabel = truncateToWidth(ctx, r.status, 160);
-            ctx.fillText(statusLabel, colX[4] + 2, y + 21);
+            ctx.fillText(statusLabel, colX[5] + 2, y + 21);
 
             ctx.fillStyle = "#1F2937";
             ctx.font = "13px Arial";
             var cli = r.cliente && r.cliente.trim() ? r.cliente : "—";
-            ctx.fillText(truncateToWidth(ctx, cli, width - 26 - colX[5]), colX[5], y + 22);
+            ctx.fillText(truncateToWidth(ctx, cli, width - 26 - colX[6]), colX[6], y + 22);
 
             y += rh;
           });

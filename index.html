@@ -598,7 +598,6 @@
       <datalist id="clientesList"></datalist>
       <datalist id="sucursalesList"></datalist>
       <datalist id="tipoUnidadList"></datalist>
-      <datalist id="operadoresFlotaList"></datalist>
 
       <div class="footer-bar">
         <button class="btn-reset" id="btnReset" type="button">
@@ -943,10 +942,6 @@
   // feeds itself just like Sucursal/Cliente.
   var tipoUnidadConocidos = ["AUTOMOVIL", "CAMIONETA", "DOLLY", "PICKUP", "RABON", "TANQUE", "TORTON", "TRACTOCAMION"];
 
-  // Mutable, synced list of operador (driver) names assigned to units —
-  // feeds itself just like Sucursal/Tipo de Unidad.
-  var operadoresFlotaConocidos = [];
-
   var TIPO_COLORS = {
     "Propio": { color: "#1D4ED8", bg: "#DBEAFE" },
     "Permisionario": { color: "#B45309", bg: "#FEF3C7" }
@@ -1094,12 +1089,6 @@
         if (JSON.stringify(data.tipoUnidadConocidos) !== JSON.stringify(tipoUnidadConocidos)) {
           tipoUnidadConocidos = data.tipoUnidadConocidos;
           if (!panelTipoUnidad.hidden) renderTipoUnidadTab();
-        }
-      }
-      if (Array.isArray(data.operadoresFlotaConocidos) && data.operadoresFlotaConocidos.length) {
-        if (JSON.stringify(data.operadoresFlotaConocidos) !== JSON.stringify(operadoresFlotaConocidos)) {
-          operadoresFlotaConocidos = data.operadoresFlotaConocidos;
-          refreshOperadoresFlotaDatalist();
         }
       }
       if (Array.isArray(data.rows)) {
@@ -1275,7 +1264,7 @@
   }
 
   function writeFullState() {
-    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, operadoresFlotaConocidos: operadoresFlotaConocidos, updatedAt: Date.now() };
+    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
     supabasePatch(body).catch(function (err) {
       console.error("Supabase write error (writeFullState):", err);
@@ -1649,28 +1638,6 @@
     tipoUnidadConocidos.push(nombre);
     tipoUnidadConocidos.sort(function (a, b) { return a.localeCompare(b, "es"); });
     refreshTipoUnidadDatalist();
-    return true;
-  }
-
-  // --- Operador de unidad: self-feeding list, same pattern as Sucursal/Tipo ---
-  function refreshOperadoresFlotaDatalist() {
-    var dl = document.getElementById("operadoresFlotaList");
-    dl.innerHTML = "";
-    operadoresFlotaConocidos.forEach(function (nombre) {
-      var o = document.createElement("option");
-      o.value = nombre;
-      dl.appendChild(o);
-    });
-  }
-
-  function registerOperadorFlotaIfNew(nombre) {
-    nombre = (nombre || "").trim();
-    if (!nombre) return false;
-    var exists = operadoresFlotaConocidos.some(function (s) { return s.toLowerCase() === nombre.toLowerCase(); });
-    if (exists) return false;
-    operadoresFlotaConocidos.push(nombre);
-    operadoresFlotaConocidos.sort(function (a, b) { return a.localeCompare(b, "es"); });
-    refreshOperadoresFlotaDatalist();
     return true;
   }
 
@@ -2305,13 +2272,13 @@
     inpOperador.type = "text";
     inpOperador.placeholder = "Nombre del operador";
     inpOperador.dataset.field = "operador";
-    inpOperador.setAttribute("list", "operadoresFlotaList");
+    // No datalist here on purpose: the autocomplete suggestion UI it
+    // triggers on some mobile browsers auto-selects the suggested text as
+    // you type, which can make it look like the field refuses to accept
+    // more than a couple of characters. Free text only, same as Origen/Destino.
+    inpOperador.setAttribute("autocomplete", "off");
     inpOperador.value = rowData.operador || "";
     inpOperador.addEventListener("input", scheduleWrite);
-    inpOperador.addEventListener("change", function () {
-      registerOperadorFlotaIfNew(inpOperador.value);
-      scheduleWrite();
-    });
     tdOperador.appendChild(inpOperador);
     tr.appendChild(tdOperador);
 

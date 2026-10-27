@@ -566,9 +566,7 @@
       <div class="toolbar">
         <button class="btn-reset btn-small" id="btnAddUnit" type="button">+ Agregar unidad</button>
         <button class="btn-reset btn-small" id="btnAddStatus" type="button">+ Nuevo estatus</button>
-        <select class="btn-reset btn-small" id="filtroEstatusSelect">
-          <option value="">Filtrar por estatus (todos)</option>
-        </select>
+        <button class="btn-reset btn-small" id="btnFiltroEstatus" type="button">Filtrar por estatus (todos)</button>
         <div class="flota-page-switcher">
           <button class="flota-page-btn" type="button" data-page="TRACTOS">Página 1 · Tractos</button>
           <button class="flota-page-btn" type="button" data-page="TANQUES">Página 2 · Tanques</button>
@@ -714,6 +712,17 @@
     <div class="status-list" id="remolqueOptionsList"></div>
     <div class="modal-actions">
       <button type="button" class="btn-reset" id="cancelAsignarRemolque">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalFiltroEstatus" hidden>
+  <div class="modal-card">
+    <h3>Filtrar por estatus</h3>
+    <p class="preview-hint">Elige un estatus para mostrar solo esas unidades, o "Todos" para quitar el filtro.</p>
+    <div class="status-list" id="filtroEstatusOptionsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-reset" id="cancelFiltroEstatus">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1303,7 +1312,7 @@
       rebuildStatusOptionsFor(sel);
       applySelectColors(sel);
     });
-    refreshFiltroEstatusSelect();
+    updateFiltroEstatusButtonLabel();
   }
 
   function addStatusOption(label) {
@@ -2526,27 +2535,55 @@
     });
   }
 
-  // --- Filtrar por estatus: native select in the toolbar, options mirror
-  // the dynamic statusOptions list (custom statuses included). ---
-  function refreshFiltroEstatusSelect() {
-    var sel = document.getElementById("filtroEstatusSelect");
-    var currentValue = sel.value;
-    sel.innerHTML = "";
-    var allOpt = document.createElement("option");
-    allOpt.value = "";
-    allOpt.textContent = "Filtrar por estatus (todos)";
-    sel.appendChild(allOpt);
-    statusOptions.forEach(function (opt) {
-      var o = document.createElement("option");
-      o.value = opt.label;
-      o.textContent = opt.label;
-      sel.appendChild(o);
-    });
-    if (statusOptions.some(function (o) { return o.label === currentValue; })) sel.value = currentValue;
+  // --- Filtrar por estatus: a modal picker (not a native <select>) so the
+  // option list always renders consistently — a full-width toolbar
+  // <select> here showed up blank on at least one mobile browser. Rebuilt
+  // fresh from the live statusOptions every time it opens, so it never
+  // needs its own separate refresh-on-sync plumbing.
+  var modalFiltroEstatus = document.getElementById("modalFiltroEstatus");
+  var btnFiltroEstatus = document.getElementById("btnFiltroEstatus");
+
+  function updateFiltroEstatusButtonLabel() {
+    btnFiltroEstatus.textContent = activeFlotaStatusFilter
+      ? "Filtrando: " + activeFlotaStatusFilter
+      : "Filtrar por estatus (todos)";
   }
-  document.getElementById("filtroEstatusSelect").addEventListener("change", function (e) {
-    activeFlotaStatusFilter = e.target.value;
-    applyFlotaPageVisibility();
+
+  function openFiltroEstatusPicker() {
+    var list = document.getElementById("filtroEstatusOptionsList");
+    list.innerHTML = "";
+
+    function addFiltroOption(label, value) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      var isActive = activeFlotaStatusFilter === value;
+      btn.textContent = isActive ? "Activo" : "Elegir";
+      btn.disabled = isActive;
+      btn.addEventListener("click", function () {
+        activeFlotaStatusFilter = value;
+        updateFiltroEstatusButtonLabel();
+        applyFlotaPageVisibility();
+        modalFiltroEstatus.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+
+    addFiltroOption("Todos los estatus", "");
+    statusOptions.forEach(function (opt) { addFiltroOption(opt.label, opt.label); });
+
+    modalFiltroEstatus.hidden = false;
+  }
+
+  btnFiltroEstatus.addEventListener("click", openFiltroEstatusPicker);
+  document.getElementById("cancelFiltroEstatus").addEventListener("click", function () {
+    modalFiltroEstatus.hidden = true;
   });
 
   // --- Asignar remolque: pick a tanque already registered in the same
@@ -3978,7 +4015,6 @@
     }));
   });
   regroupRows();
-  refreshFiltroEstatusSelect();
 
   function addUnit(nombre, tipo) {
     tbody.appendChild(createRowElement({ id: generateId(), unidad: nombre, tipo: tipo, ubicacion: "", status: "En tránsito", cliente: "" }));

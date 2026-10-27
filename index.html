@@ -716,6 +716,17 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalAsignarOperador" hidden>
+  <div class="modal-card">
+    <h3>Asignar operador</h3>
+    <p class="preview-hint" id="operadorModalHint"></p>
+    <div class="status-list" id="operadorOptionsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-reset" id="cancelAsignarOperador">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalFiltroEstatus" hidden>
   <div class="modal-card">
     <h3>Filtrar por estatus</h3>
@@ -942,6 +953,21 @@
   // feeds itself just like Sucursal/Cliente.
   var tipoUnidadConocidos = ["AUTOMOVIL", "CAMIONETA", "DOLLY", "PICKUP", "RABON", "TANQUE", "TORTON", "TRACTOCAMION"];
 
+  // Mutable, synced list of operador (driver) names — feeds itself like the
+  // others, but surfaced through the "+" picker button/modal instead of a
+  // native datalist (that triggered an auto-select-while-typing bug on at
+  // least one mobile browser).
+  var operadoresFlotaConocidos = ["Alejandro Ruiz", "Carlos Soto", "Erick Morales", "Froilan", "Héctor Rios", "Israel Castro", "Jorge Zúñiga", "José Patricio Gtz", "Juan Cavazos", "Macario Ánimas", "Oscar Rodríguez", "Ricardo Escalona", "Seúl Morales", "Silvano Amaya", "Valentín Mtz"];
+  function registerOperadorFlotaIfNew(nombre) {
+    nombre = (nombre || "").trim();
+    if (!nombre) return false;
+    var exists = operadoresFlotaConocidos.some(function (s) { return s.toLowerCase() === nombre.toLowerCase(); });
+    if (exists) return false;
+    operadoresFlotaConocidos.push(nombre);
+    operadoresFlotaConocidos.sort(function (a, b) { return a.localeCompare(b, "es"); });
+    return true;
+  }
+
   var TIPO_COLORS = {
     "Propio": { color: "#1D4ED8", bg: "#DBEAFE" },
     "Permisionario": { color: "#B45309", bg: "#FEF3C7" }
@@ -1089,6 +1115,11 @@
         if (JSON.stringify(data.tipoUnidadConocidos) !== JSON.stringify(tipoUnidadConocidos)) {
           tipoUnidadConocidos = data.tipoUnidadConocidos;
           if (!panelTipoUnidad.hidden) renderTipoUnidadTab();
+        }
+      }
+      if (Array.isArray(data.operadoresFlotaConocidos) && data.operadoresFlotaConocidos.length) {
+        if (JSON.stringify(data.operadoresFlotaConocidos) !== JSON.stringify(operadoresFlotaConocidos)) {
+          operadoresFlotaConocidos = data.operadoresFlotaConocidos;
         }
       }
       if (Array.isArray(data.rows)) {
@@ -1264,7 +1295,7 @@
   }
 
   function writeFullState() {
-    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, updatedAt: Date.now() };
+    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, operadoresFlotaConocidos: operadoresFlotaConocidos, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
     supabasePatch(body).catch(function (err) {
       console.error("Supabase write error (writeFullState):", err);
@@ -2268,6 +2299,8 @@
     tr.appendChild(tdUnidad);
 
     var tdOperador = document.createElement("td");
+    var operadorWrap = document.createElement("div");
+    operadorWrap.className = "contenedor-main-row";
     var inpOperador = document.createElement("input");
     inpOperador.type = "text";
     inpOperador.placeholder = "Nombre del operador";
@@ -2275,11 +2308,26 @@
     // No datalist here on purpose: the autocomplete suggestion UI it
     // triggers on some mobile browsers auto-selects the suggested text as
     // you type, which can make it look like the field refuses to accept
-    // more than a couple of characters. Free text only, same as Origen/Destino.
+    // more than a couple of characters. Picking a known operador instead
+    // goes through the "+" button/modal below, same pattern as remolques.
     inpOperador.setAttribute("autocomplete", "off");
     inpOperador.value = rowData.operador || "";
     inpOperador.addEventListener("input", scheduleWrite);
-    tdOperador.appendChild(inpOperador);
+    inpOperador.addEventListener("change", function () {
+      registerOperadorFlotaIfNew(inpOperador.value);
+    });
+    var btnAsignarOperador = document.createElement("button");
+    btnAsignarOperador.type = "button";
+    btnAsignarOperador.className = "btn-asignar-remolque";
+    btnAsignarOperador.title = "Elegir un operador ya registrado";
+    btnAsignarOperador.innerHTML =
+      '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+    btnAsignarOperador.addEventListener("click", function () {
+      openOperadorPicker(inpOperador);
+    });
+    operadorWrap.appendChild(inpOperador);
+    operadorWrap.appendChild(btnAsignarOperador);
+    tdOperador.appendChild(operadorWrap);
     tr.appendChild(tdOperador);
 
     var tdContenedor = document.createElement("td");
@@ -2691,6 +2739,50 @@
     modalAsignarRemolque.hidden = true;
   });
 
+  // --- Asignar operador: pick a name already registered elsewhere in the
+  // fleet, or just type a new one directly in the field — the picker never
+  // blocks adding someone not in the list yet. ---
+  var modalAsignarOperador = document.getElementById("modalAsignarOperador");
+  var operadorPickerTarget = null;
+
+  function openOperadorPicker(targetInput) {
+    operadorPickerTarget = targetInput;
+    var hint = document.getElementById("operadorModalHint");
+    var list = document.getElementById("operadorOptionsList");
+    list.innerHTML = "";
+
+    var names = operadoresFlotaConocidos.slice().sort(function (a, b) { return a.localeCompare(b, "es"); });
+    hint.textContent = names.length
+      ? "Operadores registrados (" + names.length + "):"
+      : "Aún no hay operadores registrados — escribe uno directamente en el campo.";
+
+    names.forEach(function (nombre) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = nombre;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      btn.textContent = "Elegir";
+      btn.addEventListener("click", function () {
+        operadorPickerTarget.value = nombre;
+        operadorPickerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+        scheduleWrite();
+        modalAsignarOperador.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+
+    modalAsignarOperador.hidden = false;
+  }
+
+  document.getElementById("cancelAsignarOperador").addEventListener("click", function () {
+    modalAsignarOperador.hidden = true;
+  });
+
   function regroupRows() {
     var dataRows = Array.prototype.filter.call(tbody.children, function (el) {
       return el.tagName === "TR" && el.dataset.rowId;
@@ -2833,16 +2925,22 @@
     "unidad": "E21",
     "sucursal": "REVUSA",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Valentín Mtz"
   },
   {
     "unidad": "E6",
     "sucursal": "REVUSA",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "José Patricio Gtz"
   },
   {
     "unidad": "E71",
     "sucursal": "REVUSA",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Macario Ánimas"
   },
   {
     "unidad": "E4",
@@ -2853,11 +2951,15 @@
     "unidad": "E8",
     "sucursal": "REVUSA",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Froilan"
   },
   {
     "unidad": "E20",
     "sucursal": "REVUSA",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Alejandro Ruiz"
   },
   {
     "unidad": "PR1050",
@@ -2868,11 +2970,15 @@
     "unidad": "E101",
     "sucursal": "REVUSA",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Ricardo Escalona"
   },
   {
     "unidad": "E7",
     "sucursal": "REVUSA",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Juan Cavazos"
   },
   {
     "unidad": "E25",
@@ -3038,6 +3144,8 @@
     "unidad": "TT4",
     "sucursal": "TORCH",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Macario Ánimas"
   },
   {
     "unidad": "E15",
@@ -3243,21 +3351,29 @@
     "unidad": "TJ8",
     "sucursal": "REVUSA-JEQUE",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Erick Morales"
   },
   {
     "unidad": "TJ9",
     "sucursal": "REVUSA-JEQUE",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Oscar Rodríguez"
   },
   {
     "unidad": "TJ10",
     "sucursal": "REVUSA-JEQUE",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Israel Castro"
   },
   {
     "unidad": "TJ11",
     "sucursal": "REVUSA-JEQUE",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Seúl Morales"
   },
   {
     "unidad": "TJ12",
@@ -3268,16 +3384,22 @@
     "unidad": "TJ13",
     "sucursal": "REVUSA-JEQUE",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Silvano Amaya"
   },
   {
     "unidad": "TE01",
     "sucursal": "REVUSA-JEQUE",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Carlos Soto"
   },
   {
     "unidad": "TJ7",
     "sucursal": "REVUSA-JEQUE",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Jorge Zúñiga"
   },
   {
     "unidad": "T11B",
@@ -3738,6 +3860,8 @@
     "unidad": "TT3",
     "sucursal": "TORCH",
     "tipoUnidad": "TRACTOCAMION"
+,
+    "operador": "Héctor Rios"
   },
   {
     "unidad": "TQ34",

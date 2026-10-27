@@ -567,6 +567,7 @@
         <button class="btn-reset btn-small" id="btnAddUnit" type="button">+ Agregar unidad</button>
         <button class="btn-reset btn-small" id="btnAddStatus" type="button">+ Nuevo estatus</button>
         <button class="btn-reset btn-small" id="btnFiltroEstatus" type="button">Filtrar por estatus (todos)</button>
+        <button class="btn-reset btn-small" id="btnFiltroSucursal" type="button">Filtrar por sucursal (todas)</button>
         <div class="flota-page-switcher">
           <button class="flota-page-btn" type="button" data-page="TRACTOS">Página 1 · Tractos</button>
           <button class="flota-page-btn" type="button" data-page="TANQUES">Página 2 · Tanques</button>
@@ -723,6 +724,17 @@
     <div class="status-list" id="filtroEstatusOptionsList"></div>
     <div class="modal-actions">
       <button type="button" class="btn-reset" id="cancelFiltroEstatus">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalFiltroSucursal" hidden>
+  <div class="modal-card">
+    <h3>Filtrar por sucursal</h3>
+    <p class="preview-hint">Elige una sucursal para mostrar solo esas unidades, o "Todas" para quitar el filtro.</p>
+    <div class="status-list" id="filtroSucursalOptionsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-reset" id="cancelFiltroSucursal">Cerrar</button>
     </div>
   </div>
 </div>
@@ -2511,18 +2523,24 @@
   // never silently disappears). Pure front-end filter — every row still
   // exists and syncs regardless of which page is active.
   var activeFlotaPage = "TRACTOS";
-  // "" = no filter (all statuses). Set from the "Filtrar por estatus" select.
+  // "" = no filter. Set from the "Filtrar por estatus" / "Filtrar por sucursal" pickers.
   var activeFlotaStatusFilter = "";
+  var activeFlotaSucursalFilter = "";
 
   function applyFlotaPageVisibility() {
     var currentSub = null;
+    var currentSucursal = null;
     Array.prototype.forEach.call(tbody.children, function (el) {
       if (el.classList && el.classList.contains("sucursal-sep")) {
         currentSub = el.dataset.sub;
-        el.hidden = currentSub !== activeFlotaPage;
+        currentSucursal = el.dataset.sucursal;
+        var sepVisible = currentSub === activeFlotaPage &&
+          (!activeFlotaSucursalFilter || currentSucursal === activeFlotaSucursalFilter);
+        el.hidden = !sepVisible;
         return;
       }
-      var pageVisible = currentSub === activeFlotaPage;
+      var pageVisible = currentSub === activeFlotaPage &&
+        (!activeFlotaSucursalFilter || currentSucursal === activeFlotaSucursalFilter);
       var statusVisible = true;
       if (activeFlotaStatusFilter) {
         var sel = el.querySelector && el.querySelector('select[data-field="status"]');
@@ -2584,6 +2602,54 @@
   btnFiltroEstatus.addEventListener("click", openFiltroEstatusPicker);
   document.getElementById("cancelFiltroEstatus").addEventListener("click", function () {
     modalFiltroEstatus.hidden = true;
+  });
+
+  // --- Filtrar por sucursal: same modal-picker pattern as Filtrar por
+  // estatus, options are the 7 real sucursales (SUCURSAL_GROUPS). ---
+  var modalFiltroSucursal = document.getElementById("modalFiltroSucursal");
+  var btnFiltroSucursal = document.getElementById("btnFiltroSucursal");
+
+  function updateFiltroSucursalButtonLabel() {
+    btnFiltroSucursal.textContent = activeFlotaSucursalFilter
+      ? "Filtrando: " + activeFlotaSucursalFilter
+      : "Filtrar por sucursal (todas)";
+  }
+
+  function openFiltroSucursalPicker() {
+    var list = document.getElementById("filtroSucursalOptionsList");
+    list.innerHTML = "";
+
+    function addFiltroOption(label, value) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      var isActive = activeFlotaSucursalFilter === value;
+      btn.textContent = isActive ? "Activo" : "Elegir";
+      btn.disabled = isActive;
+      btn.addEventListener("click", function () {
+        activeFlotaSucursalFilter = value;
+        updateFiltroSucursalButtonLabel();
+        applyFlotaPageVisibility();
+        modalFiltroSucursal.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+
+    addFiltroOption("Todas las sucursales", "");
+    SUCURSAL_GROUPS.forEach(function (g) { addFiltroOption(g, g); });
+
+    modalFiltroSucursal.hidden = false;
+  }
+
+  btnFiltroSucursal.addEventListener("click", openFiltroSucursalPicker);
+  document.getElementById("cancelFiltroSucursal").addEventListener("click", function () {
+    modalFiltroSucursal.hidden = true;
   });
 
   // --- Asignar remolque: pick a tanque already registered in the same

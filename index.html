@@ -129,7 +129,8 @@
   td.unidad { font-weight: 700; color: var(--brand); padding-left: 16px; white-space: nowrap; }
   .contenedor-wrap { display: flex; flex-direction: column; gap: 4px; }
   .contenedor-wrap input { font-size: 13px; }
-  .contenedor-wrap input.contenedor2 { font-size: 12px; color: #6B7280; }
+  .contenedor-wrap input.contenedor2,
+  .contenedor-wrap input.dolly-field { font-size: 12px; color: #6B7280; }
   .contenedor-main-row { display: flex; gap: 4px; align-items: center; }
   .contenedor-main-row input { flex: 1; min-width: 0; }
   .btn-asignar-remolque {
@@ -1074,6 +1075,7 @@
           var tdUnidad = tr.querySelector("td.unidad .unidad-text");
           var inpOperador = tr.querySelector('input[data-field="operador"]');
           var inpContenedor = tr.querySelector('input[data-field="contenedor"]');
+          var inpDolly = tr.querySelector('input[data-field="dolly"]');
           var inpContenedor2 = tr.querySelector('input[data-field="contenedor2"]');
           var inpOrigen = tr.querySelector('input[data-field="origen"]');
           var inpDestino = tr.querySelector('input[data-field="destino"]');
@@ -1089,6 +1091,9 @@
           }
           if (document.activeElement !== inpContenedor && inpContenedor.value !== (r.contenedor || "")) {
             inpContenedor.value = r.contenedor || "";
+          }
+          if (document.activeElement !== inpDolly && inpDolly.value !== (r.dolly || "")) {
+            inpDolly.value = r.dolly || "";
           }
           if (document.activeElement !== inpContenedor2 && inpContenedor2.value !== (r.contenedor2 || "")) {
             inpContenedor2.value = r.contenedor2 || "";
@@ -1185,6 +1190,7 @@
         operador: tr.querySelector('input[data-field="operador"]').value,
         tipo: tr.querySelector('select[data-field="tipo"]').value,
         contenedor: tr.querySelector('input[data-field="contenedor"]').value,
+        dolly: tr.querySelector('input[data-field="dolly"]').value,
         contenedor2: tr.querySelector('input[data-field="contenedor2"]').value,
         origen: tr.querySelector('input[data-field="origen"]').value,
         destino: tr.querySelector('input[data-field="destino"]').value,
@@ -2178,36 +2184,58 @@
     var tdContenedor = document.createElement("td");
     var contenedorWrap = document.createElement("div");
     contenedorWrap.className = "contenedor-wrap";
-    var inpContenedor = document.createElement("input");
-    inpContenedor.type = "text";
-    inpContenedor.placeholder = "Núm. de tanque";
-    inpContenedor.dataset.field = "contenedor";
-    inpContenedor.value = rowData.contenedor || "";
-    inpContenedor.addEventListener("input", scheduleWrite);
-    var inpContenedor2 = document.createElement("input");
-    inpContenedor2.type = "text";
-    inpContenedor2.className = "contenedor2";
-    inpContenedor2.placeholder = "2do tanque (si aplica)";
-    inpContenedor2.dataset.field = "contenedor2";
-    inpContenedor2.value = rowData.contenedor2 || "";
-    inpContenedor2.addEventListener("input", scheduleWrite);
 
-    var contenedorMainRow = document.createElement("div");
-    contenedorMainRow.className = "contenedor-main-row";
-    var btnAsignarRemolque = document.createElement("button");
-    btnAsignarRemolque.type = "button";
-    btnAsignarRemolque.className = "btn-asignar-remolque";
-    btnAsignarRemolque.title = "Elegir un tanque/remolque ya registrado en la misma sucursal";
-    btnAsignarRemolque.innerHTML =
-      '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
-    btnAsignarRemolque.addEventListener("click", function () {
-      openRemolquePicker(tr, inpContenedor);
-    });
-    contenedorMainRow.appendChild(inpContenedor);
-    contenedorMainRow.appendChild(btnAsignarRemolque);
+    // Each of Tanque / Dolly / 2do tanque gets its own input plus a "+"
+    // button that opens the picker scoped to the matching unit type within
+    // this row's own sucursal — so you assign real registered units
+    // instead of typing numbers by hand.
+    function makeAsignarField(placeholder, field, extraClass, matchFn, labelPlural, title) {
+      var inp = document.createElement("input");
+      inp.type = "text";
+      if (extraClass) inp.className = extraClass;
+      inp.placeholder = placeholder;
+      inp.dataset.field = field;
+      inp.value = rowData[field] || "";
+      inp.addEventListener("input", scheduleWrite);
 
-    contenedorWrap.appendChild(contenedorMainRow);
-    contenedorWrap.appendChild(inpContenedor2);
+      var rowWrap = document.createElement("div");
+      rowWrap.className = "contenedor-main-row";
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-asignar-remolque";
+      btn.title = title;
+      btn.innerHTML =
+        '<svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+      btn.addEventListener("click", function () {
+        openRemolquePicker(tr, inp, matchFn, labelPlural);
+      });
+      rowWrap.appendChild(inp);
+      rowWrap.appendChild(btn);
+      return { input: inp, row: rowWrap };
+    }
+
+    var tanque1 = makeAsignarField(
+      "Núm. de tanque", "contenedor", null,
+      function (r) { return tipoSubgroupOf(r.tipoUnidad) === "TANQUES"; },
+      "Tanques", "Elegir un tanque ya registrado en la misma sucursal"
+    );
+    var dolly = makeAsignarField(
+      "Dolly (si aplica)", "dolly", "dolly-field",
+      function (r) { return (r.tipoUnidad || "").trim().toUpperCase() === "DOLLY"; },
+      "Dollies", "Elegir un dolly ya registrado en la misma sucursal"
+    );
+    var tanque2 = makeAsignarField(
+      "2do tanque (si aplica)", "contenedor2", "contenedor2",
+      function (r) { return tipoSubgroupOf(r.tipoUnidad) === "TANQUES"; },
+      "Tanques", "Elegir un tanque ya registrado en la misma sucursal"
+    );
+    var inpContenedor = tanque1.input;
+    var inpDolly = dolly.input;
+    var inpContenedor2 = tanque2.input;
+
+    contenedorWrap.appendChild(tanque1.row);
+    contenedorWrap.appendChild(dolly.row);
+    contenedorWrap.appendChild(tanque2.row);
     tdContenedor.appendChild(contenedorWrap);
     tr.appendChild(tdContenedor);
 
@@ -2361,8 +2389,10 @@
   var modalAsignarRemolque = document.getElementById("modalAsignarRemolque");
   var remolquePickerTarget = null;
 
-  function openRemolquePicker(sourceTr, targetInput) {
+  function openRemolquePicker(sourceTr, targetInput, matchFn, labelPlural) {
     remolquePickerTarget = targetInput;
+    matchFn = matchFn || function (r) { return tipoSubgroupOf(r.tipoUnidad) === "TANQUES"; };
+    labelPlural = labelPlural || "Tanques";
     var sucursalVal = sourceTr.querySelector('input[data-field="sucursal"]').value;
     var group = sucursalGroupOf(sucursalVal);
     var sourceId = sourceTr.dataset.rowId;
@@ -2373,27 +2403,27 @@
     list.innerHTML = "";
 
     if (!sucursalVal.trim()) {
-      hint.textContent = "Esta unidad no tiene sucursal asignada todavía — asígnale una (⚙️ Editar detalles) para ver sus tanques.";
+      hint.textContent = "Esta unidad no tiene sucursal asignada todavía — asígnale una (⚙️ Editar detalles) para ver sus " + labelPlural.toLowerCase() + ".";
       modalAsignarRemolque.hidden = false;
       return;
     }
 
     var candidates = allRows.filter(function (r) {
-      return r.id !== sourceId && tipoSubgroupOf(r.tipoUnidad) === "TANQUES" && sucursalGroupOf(r.sucursal) === group;
+      return r.id !== sourceId && matchFn(r) && sucursalGroupOf(r.sucursal) === group;
     });
     candidates.sort(function (a, b) { return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" }); });
 
     var inUseBy = {};
     allRows.forEach(function (r) {
-      [r.contenedor, r.contenedor2].forEach(function (v) {
+      [r.contenedor, r.dolly, r.contenedor2].forEach(function (v) {
         if (!v) return;
         (inUseBy[v] = inUseBy[v] || []).push(r.unidad);
       });
     });
 
     hint.textContent = candidates.length
-      ? "Tanques registrados en " + group + " (" + candidates.length + "):"
-      : "No hay ninguna unidad tipo Tanque registrada todavía en " + group + ".";
+      ? labelPlural + " registrados en " + group + " (" + candidates.length + "):"
+      : "No hay ninguna unidad tipo " + labelPlural + " registrada todavía en " + group + ".";
 
     candidates.forEach(function (c) {
       var row = document.createElement("div");
@@ -4002,12 +4032,17 @@
     Promise.resolve().then(function () {
       var width = 1400;
       var rowHeight = 34;
-      // FULL operations with a second contenedor get a taller row so both
-      // numbers are shown in full, on their own lines, instead of both
-      // getting crammed (and truncated) into one line.
-      var rowHeightFull = 50;
-      function rowHasCont2(r) { return !!(r.contenedor2 && r.contenedor2.trim()); }
-      function rowH(r) { return rowHasCont2(r) ? rowHeightFull : rowHeight; }
+      // FULL operations with a dolly and/or a second tanque get a taller
+      // row so every assigned unit is shown in full, each on its own line,
+      // instead of getting crammed (and truncated) into one line.
+      var extraLineHeight = 16;
+      function extraLines(r) {
+        var n = 0;
+        if (r.dolly && r.dolly.trim()) n++;
+        if (r.contenedor2 && r.contenedor2.trim()) n++;
+        return n;
+      }
+      function rowH(r) { return rowHeight + extraLines(r) * extraLineHeight; }
       var headerHeight = 190;
       var tableHeaderHeight = 44;
       var footerHeight = 56;
@@ -4130,13 +4165,21 @@
 
             var cont = r.contenedor && r.contenedor.trim() ? r.contenedor : "—";
             ctx.fillText(truncateToWidth(ctx, cont, colX[3] - colX[2] - 10), colX[2], y + 22);
-            if (rowHasCont2(r)) {
+            var extraLineY = y + 22;
+            if (r.dolly && r.dolly.trim()) {
+              extraLineY += extraLineHeight;
               ctx.fillStyle = "#0D4C73";
               ctx.font = "11px Arial";
-              ctx.fillText(truncateToWidth(ctx, r.contenedor2, colX[3] - colX[2] - 10), colX[2], y + 38);
-              ctx.font = "13px Arial";
-              ctx.fillStyle = "#1F2937";
+              ctx.fillText(truncateToWidth(ctx, "Dolly " + r.dolly, colX[3] - colX[2] - 10), colX[2], extraLineY);
             }
+            if (r.contenedor2 && r.contenedor2.trim()) {
+              extraLineY += extraLineHeight;
+              ctx.fillStyle = "#0D4C73";
+              ctx.font = "11px Arial";
+              ctx.fillText(truncateToWidth(ctx, r.contenedor2, colX[3] - colX[2] - 10), colX[2], extraLineY);
+            }
+            ctx.font = "13px Arial";
+            ctx.fillStyle = "#1F2937";
 
             var origen = r.origen && r.origen.trim() ? r.origen : "—";
             ctx.fillText(truncateToWidth(ctx, origen, colX[4] - colX[3] - 10), colX[3], y + 22);

@@ -1395,7 +1395,22 @@
       window.alert("Ese estatus ya existe.");
       return;
     }
-    var palette = EXTRA_STATUS_PALETTE[hashStringToIndex(label.toLowerCase(), EXTRA_STATUS_PALETTE.length)];
+    // Start at the label's deterministic hash bucket, then walk forward to the
+    // next color not already in use by an existing status — so two unrelated
+    // labels landing on the same bucket (bound to happen sometimes once there
+    // are several custom statuses) don't actually end up looking identical,
+    // as long as the palette still has a free color left.
+    var usedColors = {};
+    statusOptions.forEach(function (o) { usedColors[o.color] = true; });
+    var startIdx = hashStringToIndex(label.toLowerCase(), EXTRA_STATUS_PALETTE.length);
+    var palette = EXTRA_STATUS_PALETTE[startIdx];
+    for (var attempt = 0; attempt < EXTRA_STATUS_PALETTE.length; attempt++) {
+      var candidate = EXTRA_STATUS_PALETTE[(startIdx + attempt) % EXTRA_STATUS_PALETTE.length];
+      if (!usedColors[candidate.color]) {
+        palette = candidate;
+        break;
+      }
+    }
     statusOptions = statusOptions.concat([{ label: label, color: palette.color, bg: palette.bg }]);
     refreshAllStatusSelects();
     writeFullState();

@@ -568,6 +568,7 @@
         <button class="btn-reset btn-small" id="btnAddStatus" type="button">+ Nuevo estatus</button>
         <button class="btn-reset btn-small" id="btnFiltroEstatus" type="button">Filtrar por estatus (todos)</button>
         <button class="btn-reset btn-small" id="btnFiltroSucursal" type="button">Filtrar por sucursal (todas)</button>
+        <button class="btn-reset btn-small" id="btnFiltroUnidad" type="button">Filtrar por unidad (todas)</button>
         <div class="flota-page-switcher">
           <button class="flota-page-btn" type="button" data-page="TRACTOS">Página 1 · Tractos</button>
           <button class="flota-page-btn" type="button" data-page="TANQUES">Página 2 · Tanques</button>
@@ -749,6 +750,18 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalFiltroUnidad" hidden>
+  <div class="modal-card">
+    <h3>Filtrar por unidad</h3>
+    <p class="preview-hint">Elige una unidad para mostrar solo esa unidad, o "Todas" para quitar el filtro.</p>
+    <input type="text" id="filtroUnidadSearch" placeholder="Buscar unidad…" style="margin-bottom:8px;" />
+    <div class="status-list" id="filtroUnidadOptionsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-reset" id="cancelFiltroUnidad">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalNewModulo" hidden>
   <div class="modal-card">
     <h3>Nuevo módulo de cliente</h3>
@@ -851,8 +864,25 @@
     { color: "#065F46", bg: "#D1FAE5" },
     { color: "#9A3412", bg: "#FFEDD5" },
     { color: "#3730A3", bg: "#E0E7FF" },
-    { color: "#831843", bg: "#FCE7F3" }
+    { color: "#831843", bg: "#FCE7F3" },
+    { color: "#0F766E", bg: "#CCFBF1" },
+    { color: "#92400E", bg: "#FEF9C3" },
+    { color: "#9F1239", bg: "#FFE4E6" },
+    { color: "#075985", bg: "#E0F2FE" }
   ];
+  // Deterministic so the same status label always lands on the same color
+  // regardless of which device/tab added it or how many other statuses
+  // existed at that moment — basing the color on array length instead (the
+  // previous approach) could collide across devices that hadn't synced
+  // each other's additions yet, piling several new statuses onto the same
+  // color.
+  function hashStringToIndex(str, mod) {
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+      hash = (hash * 31 + str.charCodeAt(i)) | 0;
+    }
+    return ((hash % mod) + mod) % mod;
+  }
   // Mutable, synced list of status options (defaults + any custom ones added).
   var statusOptions = DEFAULT_STATUS_OPTIONS.slice();
 
@@ -1355,8 +1385,7 @@
       window.alert("Ese estatus ya existe.");
       return;
     }
-    var customCount = statusOptions.length - DEFAULT_STATUS_OPTIONS.length;
-    var palette = EXTRA_STATUS_PALETTE[((customCount % EXTRA_STATUS_PALETTE.length) + EXTRA_STATUS_PALETTE.length) % EXTRA_STATUS_PALETTE.length];
+    var palette = EXTRA_STATUS_PALETTE[hashStringToIndex(label.toLowerCase(), EXTRA_STATUS_PALETTE.length)];
     statusOptions = statusOptions.concat([{ label: label, color: palette.color, bg: palette.bg }]);
     refreshAllStatusSelects();
     writeFullState();
@@ -2538,9 +2567,10 @@
   // never silently disappears). Pure front-end filter — every row still
   // exists and syncs regardless of which page is active.
   var activeFlotaPage = "TRACTOS";
-  // "" = no filter. Set from the "Filtrar por estatus" / "Filtrar por sucursal" pickers.
+  // "" = no filter. Set from the "Filtrar por estatus" / "Filtrar por sucursal" / "Filtrar por unidad" pickers.
   var activeFlotaStatusFilter = "";
   var activeFlotaSucursalFilter = "";
+  var activeFlotaUnidadFilter = "";
 
   function applyFlotaPageVisibility() {
     var currentSub = null;
@@ -2561,7 +2591,12 @@
         var sel = el.querySelector && el.querySelector('select[data-field="status"]');
         statusVisible = !!sel && sel.value === activeFlotaStatusFilter;
       }
-      el.hidden = !(pageVisible && statusVisible);
+      var unidadVisible = true;
+      if (activeFlotaUnidadFilter) {
+        var unidadEl = el.querySelector && el.querySelector(".unidad-text");
+        unidadVisible = !!unidadEl && unidadEl.textContent === activeFlotaUnidadFilter;
+      }
+      el.hidden = !(pageVisible && statusVisible && unidadVisible);
     });
     Array.prototype.forEach.call(document.querySelectorAll(".flota-page-btn"), function (btn) {
       btn.classList.toggle("active", btn.dataset.page === activeFlotaPage);
@@ -2665,6 +2700,70 @@
   btnFiltroSucursal.addEventListener("click", openFiltroSucursalPicker);
   document.getElementById("cancelFiltroSucursal").addEventListener("click", function () {
     modalFiltroSucursal.hidden = true;
+  });
+
+  // --- Filtrar por unidad: same modal-picker pattern, with a search box
+  // on top since the fleet has 200+ units and scrolling through all of
+  // them would be unusable. ---
+  var modalFiltroUnidad = document.getElementById("modalFiltroUnidad");
+  var btnFiltroUnidad = document.getElementById("btnFiltroUnidad");
+
+  function updateFiltroUnidadButtonLabel() {
+    btnFiltroUnidad.textContent = activeFlotaUnidadFilter
+      ? "Filtrando: " + activeFlotaUnidadFilter
+      : "Filtrar por unidad (todas)";
+  }
+
+  function openFiltroUnidadPicker() {
+    var list = document.getElementById("filtroUnidadOptionsList");
+    var search = document.getElementById("filtroUnidadSearch");
+    var allUnidades = collectRows()
+      .map(function (r) { return r.unidad; })
+      .filter(function (u) { return u && u.trim(); })
+      .sort(function (a, b) { return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" }); });
+
+    function addFiltroOption(label, value) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      var isActive = activeFlotaUnidadFilter === value;
+      btn.textContent = isActive ? "Activo" : "Elegir";
+      btn.disabled = isActive;
+      btn.addEventListener("click", function () {
+        activeFlotaUnidadFilter = value;
+        updateFiltroUnidadButtonLabel();
+        applyFlotaPageVisibility();
+        modalFiltroUnidad.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+
+    function renderOptions(filterText) {
+      list.innerHTML = "";
+      addFiltroOption("Todas las unidades", "");
+      var term = filterText.trim().toLowerCase();
+      allUnidades
+        .filter(function (u) { return !term || u.toLowerCase().indexOf(term) !== -1; })
+        .forEach(function (u) { addFiltroOption(u, u); });
+    }
+
+    search.value = "";
+    renderOptions("");
+    search.oninput = function () { renderOptions(search.value); };
+
+    modalFiltroUnidad.hidden = false;
+    search.focus();
+  }
+
+  btnFiltroUnidad.addEventListener("click", openFiltroUnidadPicker);
+  document.getElementById("cancelFiltroUnidad").addEventListener("click", function () {
+    modalFiltroUnidad.hidden = true;
   });
 
   // --- Asignar remolque: pick a tanque already registered in the same
@@ -4405,9 +4504,16 @@
     btn.disabled = true;
     label.textContent = "Generando…";
 
-    // Capture only the page currently on screen (Tractos / Tanques / Otros),
-    // same as what's visible in the live table.
-    var rows = collectRows().filter(function (r) { return tipoSubgroupOf(r.tipoUnidad) === activeFlotaPage; });
+    // Capture only what's currently visible in the live table: the active
+    // page (Tractos / Tanques / Otros) plus whichever estatus/sucursal/unidad
+    // filters are applied — never the whole fleet if the user has filtered it down.
+    var rows = collectRows().filter(function (r) {
+      if (tipoSubgroupOf(r.tipoUnidad) !== activeFlotaPage) return false;
+      if (activeFlotaSucursalFilter && sucursalGroupOf(r.sucursal) !== activeFlotaSucursalFilter) return false;
+      if (activeFlotaStatusFilter && r.status !== activeFlotaStatusFilter) return false;
+      if (activeFlotaUnidadFilter && r.unidad !== activeFlotaUnidadFilter) return false;
+      return true;
+    });
     var now = new Date();
 
     Promise.resolve().then(function () {

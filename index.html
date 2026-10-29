@@ -114,6 +114,7 @@
   thead th.w-contenedor { width: 190px; }
   thead th.w-status { width: 220px; }
   thead th.w-cliente { width: 208px; }
+  thead th.w-observaciones { width: 208px; }
   thead th.w-sucursal { width: 170px; }
   thead th.w-tipo-unidad { width: 160px; }
   thead th.w-origen { width: 170px; }
@@ -603,6 +604,7 @@
               <th class="w-destino">DESTINO</th>
               <th class="w-status">STATUS ACTUAL</th>
               <th class="w-cliente">CLIENTE</th>
+              <th class="w-observaciones">OBSERVACIONES</th>
               <th class="w-sucursal col-hideable">SUCURSAL</th>
               <th class="w-tipo-unidad col-hideable">TIPO DE UNIDAD</th>
               <th class="col-hideable">TIEMPO DE ENTREGA</th>
@@ -1220,6 +1222,7 @@
           var selTipo = tr.querySelector('select[data-field="tipo"]');
           var sel = tr.querySelector('select[data-field="status"]');
           var inpCliente = tr.querySelector('input[data-field="cliente"]');
+          var inpObservaciones = tr.querySelector('input[data-field="observaciones"]');
           var inpSucursal = tr.querySelector('input[data-field="sucursal"]');
           var inpTipoUnidad = tr.querySelector('input[data-field="tipoUnidad"]');
           var inpTiempoEntrega = tr.querySelector('input[data-field="tiempoEntrega"]');
@@ -1259,6 +1262,9 @@
           }
           if (document.activeElement !== inpCliente && inpCliente.value !== (r.cliente || "")) {
             inpCliente.value = r.cliente || "";
+          }
+          if (document.activeElement !== inpObservaciones && inpObservaciones.value !== (r.observaciones || "")) {
+            inpObservaciones.value = r.observaciones || "";
           }
           if (document.activeElement !== inpSucursal && inpSucursal.value !== (r.sucursal || "")) {
             inpSucursal.value = r.sucursal || "";
@@ -1346,6 +1352,7 @@
         ubicacion: inpUbic.dataset.geocoding ? (inpUbic.dataset.pendingValue || "") : inpUbic.value,
         status: tr.querySelector('select[data-field="status"]').value,
         cliente: tr.querySelector('input[data-field="cliente"]').value,
+        observaciones: tr.querySelector('input[data-field="observaciones"]').value,
         sucursal: tr.querySelector('input[data-field="sucursal"]').value,
         tipoUnidad: tr.querySelector('input[data-field="tipoUnidad"]').value,
         tiempoEntrega: tr.querySelector('input[data-field="tiempoEntrega"]').value,
@@ -2595,6 +2602,16 @@
     });
     tdCliente.appendChild(inpCliente);
     tr.appendChild(tdCliente);
+
+    var tdObservaciones = document.createElement("td");
+    var inpObservaciones = document.createElement("input");
+    inpObservaciones.type = "text";
+    inpObservaciones.placeholder = "Observaciones";
+    inpObservaciones.dataset.field = "observaciones";
+    inpObservaciones.value = rowData.observaciones || "";
+    inpObservaciones.addEventListener("input", scheduleWrite);
+    tdObservaciones.appendChild(inpObservaciones);
+    tr.appendChild(tdObservaciones);
 
     var tdSucursal = document.createElement("td");
     tdSucursal.className = "col-hideable";

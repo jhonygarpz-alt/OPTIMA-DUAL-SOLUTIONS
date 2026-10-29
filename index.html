@@ -83,6 +83,39 @@
   .subbar .right { font-weight: 600; color: #0D5C8C; }
   .subbar .right.overdue { color: #DC2626; }
 
+  .dashboard-bar {
+    padding: 16px 24px 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .dash-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    border-radius: 14px;
+    padding: 14px 20px;
+    min-width: 230px;
+    box-shadow: 0 6px 18px rgba(6,67,103,.25);
+  }
+  .dash-icon {
+    flex: none;
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.18);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dash-info { min-width: 0; }
+  .dash-number {
+    font-size: 28px; font-weight: 800; color: #fff; line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .dash-label { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.92); }
+  .dash-sub { font-size: 11px; color: rgba(255,255,255,.7); margin-top: 2px; }
+  :root[data-theme="dark"] .dash-card { box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+
   .toolbar {
     padding: 10px 24px;
     background: #fff;
@@ -314,10 +347,17 @@
   .tabs {
     display: flex; gap: 4px; padding: 0 20px;
     background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    /* On narrow screens there are more tabs than fit — scroll instead of
+       silently clipping tabs past the edge (the card's overflow:hidden
+       would otherwise make them unreachable, not just visually cut off). */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
   .tab-btn {
     padding: 10px 18px; border: none; background: rgba(255,255,255,.18); color: #fff;
     font-weight: 600; font-size: 14px; border-radius: 10px 10px 0 0; cursor: pointer;
+    flex: none; white-space: nowrap;
   }
   .tab-btn:hover { background: rgba(255,255,255,.28); }
   .tab-btn.active { background: #fff; color: var(--brand); }
@@ -579,6 +619,19 @@
           <span>Actualizar cada 2 horas · <span id="totalUnidadesLabel"></span></span>
         </div>
         <div class="right" id="lastCaptureLabel">Aún sin captura en este turno</div>
+      </div>
+
+      <div class="dashboard-bar">
+        <div class="dash-card">
+          <div class="dash-icon">
+            <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          </div>
+          <div class="dash-info">
+            <div class="dash-number" id="dashCargasHoyNumber">0</div>
+            <div class="dash-label">Unidades con carga hoy</div>
+            <div class="dash-sub" id="dashCargasHoySub">00:00 – 23:59 hrs</div>
+          </div>
+        </div>
       </div>
 
       <div class="toolbar">
@@ -916,6 +969,39 @@
   // Mutable, synced list of status options (defaults + any custom ones added).
   var statusOptions = DEFAULT_STATUS_OPTIONS.slice();
 
+  // Log of "a unit's status switched to Cargando" moments, synced like
+  // everything else — used only to compute the "unidades con carga hoy"
+  // dashboard number. Pruned on every write so it never grows unbounded.
+  // { u: unidad code, t: epoch ms }
+  var cargaEvents = [];
+  var CARGA_LOG_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000; // keep ~2 days, generous for timezone edges
+
+  function pruneCargaEvents() {
+    var cutoff = Date.now() - CARGA_LOG_MAX_AGE_MS;
+    cargaEvents = cargaEvents.filter(function (e) { return e.t >= cutoff; });
+  }
+
+  function logCargaEvent(unidad) {
+    cargaEvents.push({ u: unidad, t: Date.now() });
+    pruneCargaEvents();
+  }
+
+  function countUnidadesConCargaHoy() {
+    var now = new Date();
+    var startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var endOfDay = startOfDay + 24 * 60 * 60 * 1000;
+    var seen = {};
+    cargaEvents.forEach(function (e) {
+      if (e.t >= startOfDay && e.t < endOfDay) seen[e.u] = true;
+    });
+    return Object.keys(seen).length;
+  }
+
+  function renderCargasHoyDashboard() {
+    var el = document.getElementById("dashCargasHoyNumber");
+    if (el) el.textContent = String(countUnidadesConCargaHoy());
+  }
+
   // Mutable, synced list of client names — feeds itself: every new name typed
   // into a "Cliente" field gets added here automatically, no manual step.
   var clientesConocidos = [];
@@ -1117,6 +1203,10 @@
           refreshAllStatusSelects();
         }
       }
+      if (Array.isArray(data.cargaEvents)) {
+        cargaEvents = data.cargaEvents;
+      }
+      renderCargasHoyDashboard();
       var clientesChanged = false;
       if (Array.isArray(data.clientes) && data.clientes.length) {
         if (JSON.stringify(data.clientes) !== JSON.stringify(clientesConocidos)) {
@@ -1269,6 +1359,7 @@
           }
           if (document.activeElement !== sel && sel.value !== (r.status || "En tránsito")) {
             sel.value = r.status || "En tránsito";
+            sel.dataset.prevStatus = sel.value;
             applySelectColors(sel);
           }
           var enRutaGuardUntil = Number(tr.dataset.enRutaGuardUntil || 0);
@@ -1380,7 +1471,8 @@
   }
 
   function writeFullState() {
-    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, operadoresFlotaConocidos: operadoresFlotaConocidos, updatedAt: Date.now() };
+    pruneCargaEvents();
+    var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, operadoresFlotaConocidos: operadoresFlotaConocidos, cargaEvents: cargaEvents, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
     supabasePatch(body).catch(function (err) {
       console.error("Supabase write error (writeFullState):", err);
@@ -2590,11 +2682,20 @@
     sel.dataset.field = "status";
     rebuildStatusOptionsFor(sel);
     sel.value = rowData.status || "En tránsito";
+    sel.dataset.prevStatus = sel.value;
     applySelectColors(sel);
     updateAvailabilityFromStatus(tr, sel.value);
     sel.addEventListener("change", function () {
       applySelectColors(sel);
       updateAvailabilityFromStatus(tr, sel.value);
+      // Log a "cargó hoy" moment only for a real local transition INTO
+      // Cargando — never for a value a remote sync already applied, so
+      // other devices don't each log their own duplicate of the same event.
+      if (sel.value === "Cargando" && sel.dataset.prevStatus !== "Cargando") {
+        logCargaEvent(unidadText.textContent);
+        renderCargasHoyDashboard();
+      }
+      sel.dataset.prevStatus = sel.value;
       scheduleWrite();
       if (!panelMantenimiento.hidden) renderMantenimientoTab();
       if (activeFlotaStatusFilter) applyFlotaPageVisibility();

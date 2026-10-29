@@ -2224,11 +2224,12 @@
     if (badgeEl) badgeEl.hidden = !shouldFlag;
   }
 
-  // "En ruta" quick toggle: on = status "En tránsito", off = status
-  // "Detenido". Derived purely from the row's own status field (no extra
-  // synced state), so it always reflects reality after a remote update too.
+  // "En ruta" quick toggle: on = status "En tránsito". Its active/inactive
+  // look is derived purely from the row's own status field (no extra synced
+  // state), so it always reflects reality after a remote update too — the
+  // status dropdown stays the one real source of truth and is never locked.
   var EN_RUTA_ON_STATUS = "En tránsito";
-  var EN_RUTA_OFF_STATUS = "Detenido";
+  var EN_RUTA_OFF_STATUS = "Detenido"; // fallback when there's no remembered prior status
 
   function updateEnRutaBtn(tr) {
     var btn = tr.querySelector(".btn-en-ruta");
@@ -2502,7 +2503,17 @@
     btnEnRuta.className = "btn-en-ruta";
     btnEnRuta.textContent = "En ruta";
     btnEnRuta.addEventListener("click", function () {
-      sel.value = sel.value === EN_RUTA_ON_STATUS ? EN_RUTA_OFF_STATUS : EN_RUTA_ON_STATUS;
+      // Turning it off restores whatever status the unit had before it was
+      // marked "En ruta" (Cargando, Descargando, etc.) instead of always
+      // dropping it to "Detenido" — the dropdown stays the real source of
+      // truth, this button is just a shortcut for one specific value.
+      if (sel.value === EN_RUTA_ON_STATUS) {
+        sel.value = tr.dataset.statusBeforeEnRuta || EN_RUTA_OFF_STATUS;
+        delete tr.dataset.statusBeforeEnRuta;
+      } else {
+        tr.dataset.statusBeforeEnRuta = sel.value;
+        sel.value = EN_RUTA_ON_STATUS;
+      }
       sel.dispatchEvent(new Event("change", { bubbles: true }));
     });
     statusWrap.appendChild(btnEnRuta);

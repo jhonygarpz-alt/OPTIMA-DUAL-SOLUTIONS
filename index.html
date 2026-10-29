@@ -129,6 +129,16 @@
   td.unidad { font-weight: 700; color: var(--brand); padding-left: 16px; white-space: nowrap; }
   .status-wrap { display: flex; flex-direction: column; gap: 4px; }
   .status-wrap input.ubicacion-field { font-size: 12px; }
+  .btn-en-ruta {
+    border: 1px solid #2E7D32; background: #E8F5E9; color: #2E7D32;
+    border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 700;
+    cursor: pointer; text-align: center; width: 100%;
+  }
+  .btn-en-ruta:hover { background: #D6ECD8; }
+  .btn-en-ruta.active { background: #2E7D32; color: #fff; cursor: default; }
+  :root[data-theme="dark"] .btn-en-ruta { background: #11301A; border-color: #2E7D32; color: #86EFAC; }
+  :root[data-theme="dark"] .btn-en-ruta:hover { background: #163C21; }
+  :root[data-theme="dark"] .btn-en-ruta.active { background: #2E7D32; color: #fff; }
   .contenedor-wrap { display: flex; flex-direction: column; gap: 4px; }
   .contenedor-wrap input { font-size: 13px; }
   .contenedor-wrap input.contenedor2,
@@ -188,6 +198,8 @@
     font-size: 14px;
   }
   .btn-reset:hover { background: #F9FAFB; }
+  .btn-reset.active { background: #2E7D32; border-color: #2E7D32; color: #fff; }
+  .btn-reset.active:hover { background: #276C2A; }
   .btn-capture {
     padding: 12px 24px;
     border: none;
@@ -478,6 +490,8 @@
   :root[data-theme="dark"] .footer-bar { background: #1E293B; border-color: #334155; }
   :root[data-theme="dark"] .btn-reset { background: #1E293B; border-color: #475569; color: #CBD5E1; }
   :root[data-theme="dark"] .btn-reset:hover { background: #334155; }
+  :root[data-theme="dark"] .btn-reset.active { background: #2E7D32; border-color: #2E7D32; color: #fff; }
+  :root[data-theme="dark"] .btn-reset.active:hover { background: #276C2A; }
   :root[data-theme="dark"] .preview-card { background: #1E293B; border-color: #334155; }
   :root[data-theme="dark"] .preview-head h2 { color: #E5E7EB; }
   :root[data-theme="dark"] .preview-hint { color: #94A3B8; }
@@ -569,6 +583,7 @@
         <button class="btn-reset btn-small" id="btnFiltroEstatus" type="button">Filtrar por estatus (todos)</button>
         <button class="btn-reset btn-small" id="btnFiltroSucursal" type="button">Filtrar por sucursal (todas)</button>
         <button class="btn-reset btn-small" id="btnFiltroUnidad" type="button">Filtrar por unidad (todas)</button>
+        <button class="btn-reset btn-small" id="btnFiltroEnRuta" type="button">En ruta</button>
         <div class="flota-page-switcher">
           <button class="flota-page-btn" type="button" data-page="TRACTOS">Página 1 · Tractos</button>
           <button class="flota-page-btn" type="button" data-page="TANQUES">Página 2 · Tanques</button>
@@ -1237,6 +1252,7 @@
           if (document.activeElement !== sel && sel.value !== (r.status || "En tránsito")) {
             sel.value = r.status || "En tránsito";
             applySelectColors(sel);
+            updateEnRutaBtn(tr);
           }
           if (document.activeElement !== inpCliente && inpCliente.value !== (r.cliente || "")) {
             inpCliente.value = r.cliente || "";
@@ -2208,6 +2224,19 @@
     if (badgeEl) badgeEl.hidden = !shouldFlag;
   }
 
+  // "En ruta" quick toggle: on = status "En tránsito", off = status
+  // "Detenido". Derived purely from the row's own status field (no extra
+  // synced state), so it always reflects reality after a remote update too.
+  var EN_RUTA_ON_STATUS = "En tránsito";
+  var EN_RUTA_OFF_STATUS = "Detenido";
+
+  function updateEnRutaBtn(tr) {
+    var btn = tr.querySelector(".btn-en-ruta");
+    var sel = tr.querySelector('select[data-field="status"]');
+    if (!btn || !sel) return;
+    btn.classList.toggle("active", sel.value === EN_RUTA_ON_STATUS);
+  }
+
   // --- build one row element (used for the initial table and for units added later) ---
   var tbody = document.getElementById("rowsBody");
   var panelEstatus = document.getElementById("panelEstatus");
@@ -2466,15 +2495,29 @@
     var statusWrap = document.createElement("div");
     statusWrap.className = "status-wrap";
 
+    // Quick on/off toggle above the status dropdown — flips between
+    // "En tránsito" and "Detenido" without opening the select.
+    var btnEnRuta = document.createElement("button");
+    btnEnRuta.type = "button";
+    btnEnRuta.className = "btn-en-ruta";
+    btnEnRuta.textContent = "En ruta";
+    btnEnRuta.addEventListener("click", function () {
+      sel.value = sel.value === EN_RUTA_ON_STATUS ? EN_RUTA_OFF_STATUS : EN_RUTA_ON_STATUS;
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    statusWrap.appendChild(btnEnRuta);
+
     var sel = document.createElement("select");
     sel.dataset.field = "status";
     rebuildStatusOptionsFor(sel);
     sel.value = rowData.status || "En tránsito";
     applySelectColors(sel);
     updateAvailabilityFromStatus(tr, sel.value);
+    btnEnRuta.classList.toggle("active", sel.value === EN_RUTA_ON_STATUS);
     sel.addEventListener("change", function () {
       applySelectColors(sel);
       updateAvailabilityFromStatus(tr, sel.value);
+      updateEnRutaBtn(tr);
       scheduleWrite();
       if (!panelMantenimiento.hidden) renderMantenimientoTab();
       if (activeFlotaStatusFilter) applyFlotaPageVisibility();
@@ -2640,6 +2683,7 @@
     btnFiltroEstatus.textContent = activeFlotaStatusFilter
       ? "Filtrando: " + activeFlotaStatusFilter
       : "Filtrar por estatus (todos)";
+    updateFiltroEnRutaButtonLabel();
   }
 
   function openFiltroEstatusPicker() {
@@ -2789,6 +2833,22 @@
   btnFiltroUnidad.addEventListener("click", openFiltroUnidadPicker);
   document.getElementById("cancelFiltroUnidad").addEventListener("click", function () {
     modalFiltroUnidad.hidden = true;
+  });
+
+  // --- Filtrar "En ruta": a one-click on/off shortcut for the single most
+  // common status filter, instead of opening the full estatus picker. Stays
+  // in sync with that picker too, since both just read/write the same
+  // activeFlotaStatusFilter. ---
+  var btnFiltroEnRuta = document.getElementById("btnFiltroEnRuta");
+
+  function updateFiltroEnRutaButtonLabel() {
+    btnFiltroEnRuta.classList.toggle("active", activeFlotaStatusFilter === EN_RUTA_ON_STATUS);
+  }
+
+  btnFiltroEnRuta.addEventListener("click", function () {
+    activeFlotaStatusFilter = activeFlotaStatusFilter === EN_RUTA_ON_STATUS ? "" : EN_RUTA_ON_STATUS;
+    updateFiltroEstatusButtonLabel();
+    applyFlotaPageVisibility();
   });
 
   // --- Asignar remolque: pick a tanque already registered in the same

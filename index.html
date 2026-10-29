@@ -110,8 +110,8 @@
   table { width: 100%; min-width: 1570px; border-collapse: collapse; font-size: 14px; }
   thead tr { background: #1F2937; }
   thead th { color: #fff; text-align: left; font-weight: 600; padding: 12px 16px; }
-  thead th.w-unidad { width: 150px; }
-  thead th.w-contenedor { width: 190px; }
+  thead th.w-unidad { width: 180px; }
+  thead th.w-contenedor { width: 250px; }
   thead th.w-status { width: 220px; }
   thead th.w-cliente { width: 208px; }
   thead th.w-observaciones { width: 208px; }
@@ -146,6 +146,9 @@
   .contenedor-wrap input.dolly-field { font-size: 12px; color: #6B7280; }
   .contenedor-main-row { display: flex; gap: 4px; align-items: center; }
   .contenedor-main-row input { flex: 1; min-width: 0; }
+  .placas-field { flex: 0 0 72px !important; font-size: 11px !important; color: #6B7280; text-transform: uppercase; }
+  .unidad-plates { margin-top: 2px; }
+  .unidad-plates input.placas-field { flex: 1 1 auto !important; width: 100%; }
   .btn-asignar-remolque {
     flex: none; width: 24px; height: 24px; border-radius: 6px; border: none;
     background: #DCFCE7; color: #16A34A; cursor: pointer;
@@ -1216,6 +1219,9 @@
           var inpContenedor = tr.querySelector('input[data-field="contenedor"]');
           var inpDolly = tr.querySelector('input[data-field="dolly"]');
           var inpContenedor2 = tr.querySelector('input[data-field="contenedor2"]');
+          var inpPlacasTractor = tr.querySelector('input[data-field="placasTractor"]');
+          var inpPlacasTanque1 = tr.querySelector('input[data-field="placasTanque1"]');
+          var inpPlacasTanque2 = tr.querySelector('input[data-field="placasTanque2"]');
           var inpOrigen = tr.querySelector('input[data-field="origen"]');
           var inpDestino = tr.querySelector('input[data-field="destino"]');
           var inpUbic = tr.querySelector('input[data-field="ubicacion"]');
@@ -1238,6 +1244,15 @@
           }
           if (document.activeElement !== inpContenedor2 && inpContenedor2.value !== (r.contenedor2 || "")) {
             inpContenedor2.value = r.contenedor2 || "";
+          }
+          if (document.activeElement !== inpPlacasTractor && inpPlacasTractor.value !== (r.placasTractor || "")) {
+            inpPlacasTractor.value = r.placasTractor || "";
+          }
+          if (document.activeElement !== inpPlacasTanque1 && inpPlacasTanque1.value !== (r.placasTanque1 || "")) {
+            inpPlacasTanque1.value = r.placasTanque1 || "";
+          }
+          if (document.activeElement !== inpPlacasTanque2 && inpPlacasTanque2.value !== (r.placasTanque2 || "")) {
+            inpPlacasTanque2.value = r.placasTanque2 || "";
           }
           if (document.activeElement !== inpOrigen && inpOrigen.value !== (r.origen || "")) {
             inpOrigen.value = r.origen || "";
@@ -1344,6 +1359,9 @@
         contenedor: tr.querySelector('input[data-field="contenedor"]').value,
         dolly: tr.querySelector('input[data-field="dolly"]').value,
         contenedor2: tr.querySelector('input[data-field="contenedor2"]').value,
+        placasTractor: tr.querySelector('input[data-field="placasTractor"]').value,
+        placasTanque1: tr.querySelector('input[data-field="placasTanque1"]').value,
+        placasTanque2: tr.querySelector('input[data-field="placasTanque2"]').value,
         origen: tr.querySelector('input[data-field="origen"]').value,
         destino: tr.querySelector('input[data-field="destino"]').value,
         // While a reverse-geocode lookup is in flight the field shows a
@@ -2404,6 +2422,19 @@
     unidadBottom.appendChild(actions);
     unidadWrap.appendChild(unidadTop);
     unidadWrap.appendChild(unidadBottom);
+
+    var unidadPlatesRow = document.createElement("div");
+    unidadPlatesRow.className = "unidad-plates";
+    var inpPlacasTractor = document.createElement("input");
+    inpPlacasTractor.type = "text";
+    inpPlacasTractor.className = "placas-field";
+    inpPlacasTractor.placeholder = "Placas del tractor";
+    inpPlacasTractor.dataset.field = "placasTractor";
+    inpPlacasTractor.value = rowData.placasTractor || "";
+    inpPlacasTractor.addEventListener("input", scheduleWrite);
+    unidadPlatesRow.appendChild(inpPlacasTractor);
+    unidadWrap.appendChild(unidadPlatesRow);
+
     tdUnidad.appendChild(unidadWrap);
     tr.appendChild(tdUnidad);
 
@@ -2447,7 +2478,7 @@
     // button that opens the picker scoped to the matching unit type within
     // this row's own sucursal — so you assign real registered units
     // instead of typing numbers by hand.
-    function makeAsignarField(placeholder, field, extraClass, matchFn, labelPlural, title) {
+    function makeAsignarField(placeholder, field, extraClass, matchFn, labelPlural, title, placasField) {
       var inp = document.createElement("input");
       inp.type = "text";
       if (extraClass) inp.className = extraClass;
@@ -2469,13 +2500,28 @@
       });
       rowWrap.appendChild(inp);
       rowWrap.appendChild(btn);
-      return { input: inp, row: rowWrap };
+
+      // Placas: a plain text field, no picker — it just describes whatever
+      // unit ended up in the field above, not something chosen from a list.
+      var placasInput = null;
+      if (placasField) {
+        placasInput = document.createElement("input");
+        placasInput.type = "text";
+        placasInput.className = "placas-field";
+        placasInput.placeholder = "Placas";
+        placasInput.dataset.field = placasField;
+        placasInput.value = rowData[placasField] || "";
+        placasInput.addEventListener("input", scheduleWrite);
+        rowWrap.appendChild(placasInput);
+      }
+      return { input: inp, row: rowWrap, placasInput: placasInput };
     }
 
     var tanque1 = makeAsignarField(
       "Núm. de tanque", "contenedor", null,
       function (r) { return tipoSubgroupOf(r.tipoUnidad) === "TANQUES"; },
-      "Tanques", "Elegir un tanque ya registrado en la misma sucursal"
+      "Tanques", "Elegir un tanque ya registrado en la misma sucursal",
+      "placasTanque1"
     );
     var dolly = makeAsignarField(
       "Dolly (si aplica)", "dolly", "dolly-field",
@@ -2485,11 +2531,14 @@
     var tanque2 = makeAsignarField(
       "2do tanque (si aplica)", "contenedor2", "contenedor2",
       function (r) { return tipoSubgroupOf(r.tipoUnidad) === "TANQUES"; },
-      "Tanques", "Elegir un tanque ya registrado en la misma sucursal"
+      "Tanques", "Elegir un tanque ya registrado en la misma sucursal",
+      "placasTanque2"
     );
     var inpContenedor = tanque1.input;
     var inpDolly = dolly.input;
     var inpContenedor2 = tanque2.input;
+    var inpPlacasTanque1 = tanque1.placasInput;
+    var inpPlacasTanque2 = tanque2.placasInput;
 
     contenedorWrap.appendChild(tanque1.row);
     contenedorWrap.appendChild(dolly.row);

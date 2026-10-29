@@ -1252,7 +1252,10 @@
           if (document.activeElement !== sel && sel.value !== (r.status || "En tránsito")) {
             sel.value = r.status || "En tránsito";
             applySelectColors(sel);
-            updateEnRutaBtn(tr);
+          }
+          var enRutaGuardUntil = Number(tr.dataset.enRutaGuardUntil || 0);
+          if (Date.now() >= enRutaGuardUntil && isEnRuta(tr) !== !!r.enRuta) {
+            setEnRutaFromRemote(tr, !!r.enRuta);
           }
           if (document.activeElement !== inpCliente && inpCliente.value !== (r.cliente || "")) {
             inpCliente.value = r.cliente || "";
@@ -1345,7 +1348,8 @@
         cliente: tr.querySelector('input[data-field="cliente"]').value,
         sucursal: tr.querySelector('input[data-field="sucursal"]').value,
         tipoUnidad: tr.querySelector('input[data-field="tipoUnidad"]').value,
-        tiempoEntrega: tr.querySelector('input[data-field="tiempoEntrega"]').value
+        tiempoEntrega: tr.querySelector('input[data-field="tiempoEntrega"]').value,
+        enRuta: isEnRuta(tr)
       };
     });
   }
@@ -2224,18 +2228,32 @@
     if (badgeEl) badgeEl.hidden = !shouldFlag;
   }
 
-  // "En ruta" quick toggle: on = status "En tránsito". Its active/inactive
-  // look is derived purely from the row's own status field (no extra synced
-  // state), so it always reflects reality after a remote update too — the
-  // status dropdown stays the one real source of truth and is never locked.
-  var EN_RUTA_ON_STATUS = "En tránsito";
-  var EN_RUTA_OFF_STATUS = "Detenido"; // fallback when there's no remembered prior status
+  // "En ruta" quick toggle: an independent on/off flag, NOT tied to the
+  // status dropdown — a unit can be en ruta and still show "Detenido",
+  // "Cargando", etc. (e.g. stopped briefly mid-trip). Stored as its own
+  // field (tr.dataset.enRuta) and synced like any other row field.
+  function isEnRuta(tr) { return tr.dataset.enRuta === "1"; }
+
+  // A button click has no "still focused, still editing" window the way a
+  // text input does, so a remote poll landing inside the ~500ms write
+  // debounce could otherwise revert the click before it's even saved. This
+  // stamps a short guard so a remote sync can't clobber a just-made local
+  // choice until our own write has had time to land.
+  function setEnRutaLocal(tr, on) {
+    tr.dataset.enRuta = on ? "1" : "0";
+    tr.dataset.enRutaGuardUntil = String(Date.now() + 1500);
+    updateEnRutaBtn(tr);
+  }
+
+  function setEnRutaFromRemote(tr, on) {
+    tr.dataset.enRuta = on ? "1" : "0";
+    updateEnRutaBtn(tr);
+  }
 
   function updateEnRutaBtn(tr) {
     var btn = tr.querySelector(".btn-en-ruta");
-    var sel = tr.querySelector('select[data-field="status"]');
-    if (!btn || !sel) return;
-    btn.classList.toggle("active", sel.value === EN_RUTA_ON_STATUS);
+    if (!btn) return;
+    btn.classList.toggle("active", isEnRuta(tr));
   }
 
   // --- build one row element (used for the initial table and for units added later) ---
@@ -2496,25 +2514,19 @@
     var statusWrap = document.createElement("div");
     statusWrap.className = "status-wrap";
 
-    // Quick on/off toggle above the status dropdown — flips between
-    // "En tránsito" and "Detenido" without opening the select.
+    // Quick on/off toggle above the status dropdown — independent of the
+    // status itself, since a unit can be en ruta while showing any status
+    // (stopped briefly, loading, etc.).
+    tr.dataset.enRuta = rowData.enRuta ? "1" : "0";
     var btnEnRuta = document.createElement("button");
     btnEnRuta.type = "button";
     btnEnRuta.className = "btn-en-ruta";
     btnEnRuta.textContent = "En ruta";
+    btnEnRuta.classList.toggle("active", isEnRuta(tr));
     btnEnRuta.addEventListener("click", function () {
-      // Turning it off restores whatever status the unit had before it was
-      // marked "En ruta" (Cargando, Descargando, etc.) instead of always
-      // dropping it to "Detenido" — the dropdown stays the real source of
-      // truth, this button is just a shortcut for one specific value.
-      if (sel.value === EN_RUTA_ON_STATUS) {
-        sel.value = tr.dataset.statusBeforeEnRuta || EN_RUTA_OFF_STATUS;
-        delete tr.dataset.statusBeforeEnRuta;
-      } else {
-        tr.dataset.statusBeforeEnRuta = sel.value;
-        sel.value = EN_RUTA_ON_STATUS;
-      }
-      sel.dispatchEvent(new Event("change", { bubbles: true }));
+      setEnRutaLocal(tr, !isEnRuta(tr));
+      scheduleWrite();
+      if (activeFlotaEnRutaFilter) applyFlotaPageVisibility();
     });
     statusWrap.appendChild(btnEnRuta);
 
@@ -2524,11 +2536,9 @@
     sel.value = rowData.status || "En tránsito";
     applySelectColors(sel);
     updateAvailabilityFromStatus(tr, sel.value);
-    btnEnRuta.classList.toggle("active", sel.value === EN_RUTA_ON_STATUS);
     sel.addEventListener("change", function () {
       applySelectColors(sel);
       updateAvailabilityFromStatus(tr, sel.value);
-      updateEnRutaBtn(tr);
       scheduleWrite();
       if (!panelMantenimiento.hidden) renderMantenimientoTab();
       if (activeFlotaStatusFilter) applyFlotaPageVisibility();
@@ -2650,6 +2660,7 @@
   var activeFlotaStatusFilter = "";
   var activeFlotaSucursalFilter = "";
   var activeFlotaUnidadFilter = "";
+  var activeFlotaEnRutaFilter = false;
 
   function applyFlotaPageVisibility() {
     var currentSub = null;
@@ -2675,7 +2686,8 @@
         var unidadEl = el.querySelector && el.querySelector(".unidad-text");
         unidadVisible = !!unidadEl && unidadEl.textContent === activeFlotaUnidadFilter;
       }
-      el.hidden = !(pageVisible && statusVisible && unidadVisible);
+      var enRutaVisible = !activeFlotaEnRutaFilter || isEnRuta(el);
+      el.hidden = !(pageVisible && statusVisible && unidadVisible && enRutaVisible);
     });
     Array.prototype.forEach.call(document.querySelectorAll(".flota-page-btn"), function (btn) {
       btn.classList.toggle("active", btn.dataset.page === activeFlotaPage);
@@ -2694,7 +2706,6 @@
     btnFiltroEstatus.textContent = activeFlotaStatusFilter
       ? "Filtrando: " + activeFlotaStatusFilter
       : "Filtrar por estatus (todos)";
-    updateFiltroEnRutaButtonLabel();
   }
 
   function openFiltroEstatusPicker() {
@@ -2846,19 +2857,17 @@
     modalFiltroUnidad.hidden = true;
   });
 
-  // --- Filtrar "En ruta": a one-click on/off shortcut for the single most
-  // common status filter, instead of opening the full estatus picker. Stays
-  // in sync with that picker too, since both just read/write the same
-  // activeFlotaStatusFilter. ---
+  // --- Filtrar "En ruta": shows only units with the en-ruta flag on,
+  // independent of whatever status they currently show. ---
   var btnFiltroEnRuta = document.getElementById("btnFiltroEnRuta");
 
   function updateFiltroEnRutaButtonLabel() {
-    btnFiltroEnRuta.classList.toggle("active", activeFlotaStatusFilter === EN_RUTA_ON_STATUS);
+    btnFiltroEnRuta.classList.toggle("active", activeFlotaEnRutaFilter);
   }
 
   btnFiltroEnRuta.addEventListener("click", function () {
-    activeFlotaStatusFilter = activeFlotaStatusFilter === EN_RUTA_ON_STATUS ? "" : EN_RUTA_ON_STATUS;
-    updateFiltroEstatusButtonLabel();
+    activeFlotaEnRutaFilter = !activeFlotaEnRutaFilter;
+    updateFiltroEnRutaButtonLabel();
     applyFlotaPageVisibility();
   });
 

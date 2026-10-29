@@ -986,6 +986,15 @@
     pruneCargaEvents();
   }
 
+  // Matches both the built-in "Cargando" and whatever custom "cargado"-style
+  // label a fleet actually uses day to day (this one runs theirs on
+  // "CARGADO", not the default) — case-insensitive, exact word only, so it
+  // never catches unrelated statuses like "PENDIENTE CARGA" or "Descargando".
+  function isCargaStatus(label) {
+    var l = (label || "").trim().toLowerCase();
+    return l === "cargando" || l === "cargado";
+  }
+
   function countUnidadesConCargaHoy() {
     var now = new Date();
     var startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -2688,10 +2697,10 @@
     sel.addEventListener("change", function () {
       applySelectColors(sel);
       updateAvailabilityFromStatus(tr, sel.value);
-      // Log a "cargó hoy" moment only for a real local transition INTO
-      // Cargando — never for a value a remote sync already applied, so
-      // other devices don't each log their own duplicate of the same event.
-      if (sel.value === "Cargando" && sel.dataset.prevStatus !== "Cargando") {
+      // Log a "cargó hoy" moment only for a real local transition INTO a
+      // "cargando/cargado" status — never for a value a remote sync already
+      // applied, so other devices don't each log their own duplicate.
+      if (isCargaStatus(sel.value) && !isCargaStatus(sel.dataset.prevStatus)) {
         logCargaEvent(unidadText.textContent);
         renderCargasHoyDashboard();
       }

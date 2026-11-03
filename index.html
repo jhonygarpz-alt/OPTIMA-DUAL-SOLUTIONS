@@ -144,7 +144,7 @@
   thead tr { background: #1F2937; }
   thead th { color: #fff; text-align: left; font-weight: 600; padding: 12px 16px; }
   thead th.w-unidad { width: 180px; }
-  thead th.w-contenedor { width: 250px; }
+  thead th.w-contenedor { width: 310px; }
   thead th.w-status { width: 220px; }
   thead th.w-cliente { width: 208px; }
   thead th.w-observaciones { width: 208px; }
@@ -182,6 +182,10 @@
   .placas-field { flex: 0 0 72px !important; font-size: 11px !important; color: #6B7280; text-transform: uppercase; }
   .unidad-plates { margin-top: 2px; }
   .unidad-plates input.placas-field { flex: 1 1 auto !important; width: 100%; }
+  .equipo-estatus-mini {
+    flex: 0 0 60px; min-width: 0; padding: 2px 4px; font-size: 10px; font-weight: 700;
+    border-radius: 6px; border: none; text-align: center; cursor: pointer;
+  }
   .btn-asignar-remolque {
     flex: none; width: 24px; height: 24px; border-radius: 6px; border: none;
     background: #DCFCE7; color: #16A34A; cursor: pointer;
@@ -719,7 +723,7 @@
   <div class="modal-overlay" id="modalFiltroMantenimientoSucursal" hidden>
     <div class="modal-card">
       <h3>Filtrar por sucursal</h3>
-      <p class="preview-hint">Elige una sucursal para mostrar solo esas unidades, o "Todas" para quitar el filtro.</p>
+      <p class="preview-hint">Elige una o varias sucursales para mostrar solo esas unidades, o "Todas" para quitar el filtro.</p>
       <div class="status-list" id="filtroMantenimientoSucursalOptionsList"></div>
       <div class="modal-actions">
         <button type="button" class="btn-reset" id="cancelFiltroMantenimientoSucursal">Cerrar</button>
@@ -1140,6 +1144,15 @@
     "Permisionario": { color: "#B45309", bg: "#FEF3C7" }
   };
 
+  // Operational status of the specific tanque/dolly attached to a unit —
+  // independent of the unit's own status, same reasoning as "En ruta": a
+  // tracto can be "En tránsito" while towing a tanque that's actually due
+  // for service.
+  var EQUIPO_ESTATUS_COLORS = {
+    "Operativo": { color: "#1B5E20", bg: "#E8F5E9" },
+    "Mantenimiento": { color: "#C62828", bg: "#FFEBEE" }
+  };
+
   var DEFAULT_TOTAL_UNIDADES = 0;
   var lastCapture = null;
 
@@ -1333,6 +1346,9 @@
           var inpPlacasTractor = tr.querySelector('input[data-field="placasTractor"]');
           var inpPlacasTanque1 = tr.querySelector('input[data-field="placasTanque1"]');
           var inpPlacasTanque2 = tr.querySelector('input[data-field="placasTanque2"]');
+          var selEstatusTanque1 = tr.querySelector('select[data-field="estatusTanque1"]');
+          var selEstatusDolly = tr.querySelector('select[data-field="estatusDolly"]');
+          var selEstatusTanque2 = tr.querySelector('select[data-field="estatusTanque2"]');
           var inpOrigen = tr.querySelector('input[data-field="origen"]');
           var inpDestino = tr.querySelector('input[data-field="destino"]');
           var inpUbic = tr.querySelector('input[data-field="ubicacion"]');
@@ -1364,6 +1380,18 @@
           }
           if (document.activeElement !== inpPlacasTanque2 && inpPlacasTanque2.value !== (r.placasTanque2 || "")) {
             inpPlacasTanque2.value = r.placasTanque2 || "";
+          }
+          if (document.activeElement !== selEstatusTanque1 && selEstatusTanque1.value !== (r.estatusTanque1 || "Operativo")) {
+            selEstatusTanque1.value = r.estatusTanque1 || "Operativo";
+            applyEquipoEstatusColors(selEstatusTanque1);
+          }
+          if (document.activeElement !== selEstatusDolly && selEstatusDolly.value !== (r.estatusDolly || "Operativo")) {
+            selEstatusDolly.value = r.estatusDolly || "Operativo";
+            applyEquipoEstatusColors(selEstatusDolly);
+          }
+          if (document.activeElement !== selEstatusTanque2 && selEstatusTanque2.value !== (r.estatusTanque2 || "Operativo")) {
+            selEstatusTanque2.value = r.estatusTanque2 || "Operativo";
+            applyEquipoEstatusColors(selEstatusTanque2);
           }
           if (document.activeElement !== inpOrigen && inpOrigen.value !== (r.origen || "")) {
             inpOrigen.value = r.origen || "";
@@ -1474,6 +1502,9 @@
         placasTractor: tr.querySelector('input[data-field="placasTractor"]').value,
         placasTanque1: tr.querySelector('input[data-field="placasTanque1"]').value,
         placasTanque2: tr.querySelector('input[data-field="placasTanque2"]').value,
+        estatusTanque1: tr.querySelector('select[data-field="estatusTanque1"]').value,
+        estatusDolly: tr.querySelector('select[data-field="estatusDolly"]').value,
+        estatusTanque2: tr.querySelector('select[data-field="estatusTanque2"]').value,
         origen: tr.querySelector('input[data-field="origen"]').value,
         destino: tr.querySelector('input[data-field="destino"]').value,
         // While a reverse-geocode lookup is in flight the field shows a
@@ -1521,6 +1552,12 @@
 
   function applyTipoColors(sel) {
     var info = TIPO_COLORS[sel.value] || TIPO_COLORS.Propio;
+    sel.style.backgroundColor = info.bg;
+    sel.style.color = info.color;
+  }
+
+  function applyEquipoEstatusColors(sel) {
+    var info = EQUIPO_ESTATUS_COLORS[sel.value] || EQUIPO_ESTATUS_COLORS.Operativo;
     sel.style.backgroundColor = info.bg;
     sel.style.color = info.color;
   }
@@ -1966,8 +2003,8 @@
     body.innerHTML = "";
 
     var rows = collectRows().filter(function (r) { return r.status === "Mantenimiento"; });
-    if (activeMantenimientoSucursalFilter) {
-      rows = rows.filter(function (r) { return sucursalGroupOf(r.sucursal) === activeMantenimientoSucursalFilter; });
+    if (activeMantenimientoSucursalFilter.length) {
+      rows = rows.filter(function (r) { return activeMantenimientoSucursalFilter.indexOf(sucursalGroupOf(r.sucursal)) !== -1; });
     }
     rows.sort(function (a, b) { return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" }); });
 
@@ -1977,8 +2014,8 @@
     if (!rows.length) {
       var empty = document.createElement("div");
       empty.className = "clientes-empty";
-      empty.textContent = activeMantenimientoSucursalFilter
-        ? "No hay unidades en mantenimiento en " + activeMantenimientoSucursalFilter + "."
+      empty.textContent = activeMantenimientoSucursalFilter.length
+        ? "No hay unidades en mantenimiento en " + activeMantenimientoSucursalFilter.join(", ") + "."
         : "No hay unidades en mantenimiento en este momento.";
       body.appendChild(empty);
       return;
@@ -2617,7 +2654,7 @@
     // button that opens the picker scoped to the matching unit type within
     // this row's own sucursal — so you assign real registered units
     // instead of typing numbers by hand.
-    function makeAsignarField(placeholder, field, extraClass, matchFn, labelPlural, title, placasField) {
+    function makeAsignarField(placeholder, field, extraClass, matchFn, labelPlural, title, placasField, estatusField) {
       var inp = document.createElement("input");
       inp.type = "text";
       if (extraClass) inp.className = extraClass;
@@ -2653,25 +2690,50 @@
         placasInput.addEventListener("input", scheduleWrite);
         rowWrap.appendChild(placasInput);
       }
-      return { input: inp, row: rowWrap, placasInput: placasInput };
+
+      // Estatus del equipo (tanque/dolly) — independent of the tractor's own
+      // status: this specific piece of equipment can be due for service
+      // while the unit towing it is out on a trip.
+      var estatusSelect = null;
+      if (estatusField) {
+        estatusSelect = document.createElement("select");
+        estatusSelect.className = "tipo-mini equipo-estatus-mini";
+        estatusSelect.dataset.field = estatusField;
+        estatusSelect.title = "Estatus de este equipo";
+        ["Operativo", "Mantenimiento"].forEach(function (opt) {
+          var o = document.createElement("option");
+          o.value = opt;
+          o.textContent = opt === "Operativo" ? "OP" : "MTO";
+          estatusSelect.appendChild(o);
+        });
+        estatusSelect.value = rowData[estatusField] || "Operativo";
+        applyEquipoEstatusColors(estatusSelect);
+        estatusSelect.addEventListener("change", function () {
+          applyEquipoEstatusColors(estatusSelect);
+          scheduleWrite();
+        });
+        rowWrap.appendChild(estatusSelect);
+      }
+      return { input: inp, row: rowWrap, placasInput: placasInput, estatusSelect: estatusSelect };
     }
 
     var tanque1 = makeAsignarField(
       "Núm. de tanque", "contenedor", null,
       function (r) { return tipoSubgroupOf(r.tipoUnidad) === "TANQUES"; },
       "Tanques", "Elegir un tanque ya registrado en la misma sucursal",
-      "placasTanque1"
+      "placasTanque1", "estatusTanque1"
     );
     var dolly = makeAsignarField(
       "Dolly (si aplica)", "dolly", "dolly-field",
       function (r) { return (r.tipoUnidad || "").trim().toUpperCase() === "DOLLY"; },
-      "Dollies", "Elegir un dolly ya registrado en la misma sucursal"
+      "Dollies", "Elegir un dolly ya registrado en la misma sucursal",
+      null, "estatusDolly"
     );
     var tanque2 = makeAsignarField(
       "2do tanque (si aplica)", "contenedor2", "contenedor2",
       function (r) { return tipoSubgroupOf(r.tipoUnidad) === "TANQUES"; },
       "Tanques", "Elegir un tanque ya registrado en la misma sucursal",
-      "placasTanque2"
+      "placasTanque2", "estatusTanque2"
     );
     var inpContenedor = tanque1.input;
     var inpDolly = dolly.input;
@@ -3008,46 +3070,70 @@
   });
 
   // --- Filtrar por sucursal (pestaña Mantenimiento): same modal-picker
-  // pattern, its own filter state since it filters a different list. ---
-  var activeMantenimientoSucursalFilter = "";
+  // pattern, its own filter state since it filters a different list. Multi-
+  // select — an array of chosen sucursales, empty means "todas" — so you
+  // can check several branches at once instead of being limited to one. ---
+  var activeMantenimientoSucursalFilter = [];
   var modalFiltroMantenimientoSucursal = document.getElementById("modalFiltroMantenimientoSucursal");
   var btnFiltroMantenimientoSucursal = document.getElementById("btnFiltroMantenimientoSucursal");
 
   function updateFiltroMantenimientoSucursalButtonLabel() {
-    btnFiltroMantenimientoSucursal.textContent = activeMantenimientoSucursalFilter
-      ? "Filtrando: " + activeMantenimientoSucursalFilter
-      : "Filtrar por sucursal (todas)";
+    if (!activeMantenimientoSucursalFilter.length) {
+      btnFiltroMantenimientoSucursal.textContent = "Filtrar por sucursal (todas)";
+    } else if (activeMantenimientoSucursalFilter.length === 1) {
+      btnFiltroMantenimientoSucursal.textContent = "Filtrando: " + activeMantenimientoSucursalFilter[0];
+    } else {
+      btnFiltroMantenimientoSucursal.textContent = "Filtrando: " + activeMantenimientoSucursalFilter.length + " sucursales";
+    }
   }
 
   function openFiltroMantenimientoSucursalPicker() {
     var list = document.getElementById("filtroMantenimientoSucursalOptionsList");
-    list.innerHTML = "";
 
-    function addFiltroOption(label, value) {
-      var row = document.createElement("div");
-      row.className = "status-pill-row";
-      var span = document.createElement("span");
-      span.textContent = label;
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btn-reset btn-small";
-      var isActive = activeMantenimientoSucursalFilter === value;
-      btn.textContent = isActive ? "Activo" : "Elegir";
-      btn.disabled = isActive;
-      btn.addEventListener("click", function () {
-        activeMantenimientoSucursalFilter = value;
-        updateFiltroMantenimientoSucursalButtonLabel();
-        renderMantenimientoTab();
-        modalFiltroMantenimientoSucursal.hidden = true;
-      });
-      row.appendChild(span);
-      row.appendChild(btn);
-      list.appendChild(row);
+    function redraw() {
+      list.innerHTML = "";
+
+      function addFiltroOption(label, value) {
+        var row = document.createElement("div");
+        row.className = "status-pill-row";
+        var span = document.createElement("span");
+        span.textContent = label;
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn-reset btn-small";
+        if (value === null) {
+          // "Todas las sucursales" — clears the whole selection
+          var allActive = activeMantenimientoSucursalFilter.length === 0;
+          btn.textContent = allActive ? "Activo" : "Elegir";
+          btn.disabled = allActive;
+          btn.addEventListener("click", function () {
+            activeMantenimientoSucursalFilter = [];
+            updateFiltroMantenimientoSucursalButtonLabel();
+            renderMantenimientoTab();
+            redraw();
+          });
+        } else {
+          var isSelected = activeMantenimientoSucursalFilter.indexOf(value) !== -1;
+          btn.textContent = isSelected ? "Quitar" : "Elegir";
+          btn.addEventListener("click", function () {
+            activeMantenimientoSucursalFilter = isSelected
+              ? activeMantenimientoSucursalFilter.filter(function (g) { return g !== value; })
+              : activeMantenimientoSucursalFilter.concat([value]);
+            updateFiltroMantenimientoSucursalButtonLabel();
+            renderMantenimientoTab();
+            redraw();
+          });
+        }
+        row.appendChild(span);
+        row.appendChild(btn);
+        list.appendChild(row);
+      }
+
+      addFiltroOption("Todas las sucursales", null);
+      SUCURSAL_GROUPS.forEach(function (g) { addFiltroOption(g, g); });
     }
 
-    addFiltroOption("Todas las sucursales", "");
-    SUCURSAL_GROUPS.forEach(function (g) { addFiltroOption(g, g); });
-
+    redraw();
     modalFiltroMantenimientoSucursal.hidden = false;
   }
 

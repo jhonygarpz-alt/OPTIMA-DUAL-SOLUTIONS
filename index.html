@@ -710,8 +710,20 @@
     <div id="panelMantenimiento" hidden>
       <div class="clientes-toolbar">
         <span class="clientes-count" id="mantenimientoCount">0 unidades en mantenimiento</span>
+        <button class="btn-reset btn-small" id="btnFiltroMantenimientoSucursal" type="button">Filtrar por sucursal (todas)</button>
       </div>
       <div class="mantenimiento-list" id="mantenimientoBody"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalFiltroMantenimientoSucursal" hidden>
+    <div class="modal-card">
+      <h3>Filtrar por sucursal</h3>
+      <p class="preview-hint">Elige una sucursal para mostrar solo esas unidades, o "Todas" para quitar el filtro.</p>
+      <div class="status-list" id="filtroMantenimientoSucursalOptionsList"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-reset" id="cancelFiltroMantenimientoSucursal">Cerrar</button>
+      </div>
     </div>
   </div>
 
@@ -1954,6 +1966,9 @@
     body.innerHTML = "";
 
     var rows = collectRows().filter(function (r) { return r.status === "Mantenimiento"; });
+    if (activeMantenimientoSucursalFilter) {
+      rows = rows.filter(function (r) { return sucursalGroupOf(r.sucursal) === activeMantenimientoSucursalFilter; });
+    }
     rows.sort(function (a, b) { return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" }); });
 
     document.getElementById("mantenimientoCount").textContent =
@@ -1962,7 +1977,9 @@
     if (!rows.length) {
       var empty = document.createElement("div");
       empty.className = "clientes-empty";
-      empty.textContent = "No hay unidades en mantenimiento en este momento.";
+      empty.textContent = activeMantenimientoSucursalFilter
+        ? "No hay unidades en mantenimiento en " + activeMantenimientoSucursalFilter + "."
+        : "No hay unidades en mantenimiento en este momento.";
       body.appendChild(empty);
       return;
     }
@@ -2967,6 +2984,55 @@
   btnFiltroSucursal.addEventListener("click", openFiltroSucursalPicker);
   document.getElementById("cancelFiltroSucursal").addEventListener("click", function () {
     modalFiltroSucursal.hidden = true;
+  });
+
+  // --- Filtrar por sucursal (pestaña Mantenimiento): same modal-picker
+  // pattern, its own filter state since it filters a different list. ---
+  var activeMantenimientoSucursalFilter = "";
+  var modalFiltroMantenimientoSucursal = document.getElementById("modalFiltroMantenimientoSucursal");
+  var btnFiltroMantenimientoSucursal = document.getElementById("btnFiltroMantenimientoSucursal");
+
+  function updateFiltroMantenimientoSucursalButtonLabel() {
+    btnFiltroMantenimientoSucursal.textContent = activeMantenimientoSucursalFilter
+      ? "Filtrando: " + activeMantenimientoSucursalFilter
+      : "Filtrar por sucursal (todas)";
+  }
+
+  function openFiltroMantenimientoSucursalPicker() {
+    var list = document.getElementById("filtroMantenimientoSucursalOptionsList");
+    list.innerHTML = "";
+
+    function addFiltroOption(label, value) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      var isActive = activeMantenimientoSucursalFilter === value;
+      btn.textContent = isActive ? "Activo" : "Elegir";
+      btn.disabled = isActive;
+      btn.addEventListener("click", function () {
+        activeMantenimientoSucursalFilter = value;
+        updateFiltroMantenimientoSucursalButtonLabel();
+        renderMantenimientoTab();
+        modalFiltroMantenimientoSucursal.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+
+    addFiltroOption("Todas las sucursales", "");
+    SUCURSAL_GROUPS.forEach(function (g) { addFiltroOption(g, g); });
+
+    modalFiltroMantenimientoSucursal.hidden = false;
+  }
+
+  btnFiltroMantenimientoSucursal.addEventListener("click", openFiltroMantenimientoSucursalPicker);
+  document.getElementById("cancelFiltroMantenimientoSucursal").addEventListener("click", function () {
+    modalFiltroMantenimientoSucursal.hidden = true;
   });
 
   // --- Filtrar por unidad: same modal-picker pattern, with a search box

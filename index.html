@@ -1390,7 +1390,7 @@
           if (document.activeElement !== inpCliente && inpCliente.value !== (r.cliente || "")) {
             inpCliente.value = r.cliente || "";
           }
-          if (document.activeElement !== inpObservaciones && inpObservaciones.value !== (r.observaciones || "")) {
+          if (!mantenimientoActive && document.activeElement !== inpObservaciones && inpObservaciones.value !== (r.observaciones || "")) {
             inpObservaciones.value = r.observaciones || "";
           }
           if (document.activeElement !== inpSucursal && inpSucursal.value !== (r.sucursal || "")) {
@@ -2019,6 +2019,27 @@
       entregaWrap.appendChild(label);
       entregaWrap.appendChild(inp);
       card.appendChild(entregaWrap);
+
+      // Same field as the "Observaciones" column in Estatus de Flota — this
+      // just gives it a second, more visible entry point while a unit is in
+      // mantenimiento, instead of a separate field to keep in sync.
+      var obsWrap = document.createElement("div");
+      obsWrap.className = "mantenimiento-entrega";
+      var obsLabel = document.createElement("label");
+      obsLabel.textContent = "Observaciones";
+      var obsInp = document.createElement("input");
+      obsInp.type = "text";
+      obsInp.placeholder = "Notas sobre esta unidad…";
+      obsInp.value = r.observaciones || "";
+      obsInp.addEventListener("input", function () {
+        var tr = tbody.querySelector('tr[data-row-id="' + r.id + '"]');
+        if (!tr) return;
+        tr.querySelector('input[data-field="observaciones"]').value = obsInp.value;
+        scheduleWrite();
+      });
+      obsWrap.appendChild(obsLabel);
+      obsWrap.appendChild(obsInp);
+      card.appendChild(obsWrap);
 
       body.appendChild(card);
     });

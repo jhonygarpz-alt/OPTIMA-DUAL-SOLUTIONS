@@ -416,22 +416,63 @@
   .tipo-unidad-mini-table td { padding: 6px 8px; border-top: 1px solid #E5EFF3; }
   .tipo-unidad-mini-table tr:first-child td { border-top: none; }
 
-  /* --- Mantenimiento tab: units in "Mantenimiento" status, with an
-     editable tiempo de entrega field for the maintenance lead --- */
-  .mantenimiento-list { padding: 18px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
-  .mantenimiento-card {
-    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-    border: 1px solid #D7E6ED; border-radius: 12px; padding: 14px 18px; background: #F5FAFC;
+  /* --- Mantenimiento tab: units in "Mantenimiento" status, tracked through
+     a fixed repair pipeline (Reporte → Diagnóstico → … → Liberada) --- */
+  .mantenimiento-list { padding: 18px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .mant-card {
+    display: flex; flex-direction: column; gap: 14px;
+    border: 1px solid #D7E6ED; border-radius: 14px; padding: 18px 20px; background: #fff;
   }
-  .mantenimiento-info { display: flex; flex-direction: column; gap: 3px; min-width: 180px; }
-  .mantenimiento-unidad { font-weight: 700; color: var(--brand); font-size: 15px; }
-  .mantenimiento-meta { font-size: 12px; color: #6B7280; }
-  .mantenimiento-entrega { display: flex; flex-direction: column; gap: 4px; min-width: 240px; flex: 1; max-width: 360px; }
-  .mantenimiento-entrega label {
-    font-size: 11px; font-weight: 700; color: #7C3AED; text-transform: uppercase; letter-spacing: .03em;
+  .mant-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .mant-unidad { font-weight: 700; color: #1F2937; font-size: 17px; }
+  .mant-pill {
+    flex: none; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap;
   }
-  .mantenimiento-entrega input {
-    padding: 9px 10px; border-radius: 8px; border: 1px solid #E5E7EB; font: inherit; color: #1F2937;
+  .mant-pill-orange { background: #FFEDD5; color: #C2410C; }
+  .mant-pill-green { background: #DCFCE7; color: #15803D; }
+  .mant-sub { font-size: 13px; color: #6B7280; }
+  .mant-sub input[type="date"] {
+    border: none; background: transparent; font: inherit; color: inherit; padding: 0; cursor: pointer;
+  }
+  .mant-dias-fuera { font-weight: 700; color: #1F2937; font-size: 14px; }
+  .mant-historial-label {
+    font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .mant-progress-bar { display: flex; gap: 4px; margin-top: 8px; }
+  .mant-progress-seg { flex: 1; height: 8px; border-radius: 4px; background: #E5E7EB; }
+  .mant-progress-seg.done { background: #22C55E; }
+  .mant-progress-seg.current { background: #F59E0B; }
+  .mant-stages-row {
+    display: flex; gap: 4px; margin-top: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+  }
+  .mant-stage-col {
+    flex: 1 0 84px; min-width: 84px; text-align: center; background: none; border: none; cursor: pointer;
+    padding: 2px 4px; border-radius: 6px; font: inherit;
+    /* override the global `button { display: inline-flex }` reset, which
+       would otherwise lay the name/state spans out side by side instead
+       of stacked */
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+  }
+  .mant-stage-col:hover { background: #F1F5F9; }
+  .mant-stage-name { display: block; font-size: 11px; color: #374151; font-weight: 600; margin-bottom: 3px; white-space: nowrap; }
+  .mant-stage-state { display: block; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .mant-stage-state.done { color: #16A34A; }
+  .mant-stage-state.current { color: #D97706; }
+  .mant-stage-state.pending { color: #9CA3AF; font-weight: 500; }
+  .mant-current-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .mant-current-label { font-weight: 700; color: #1F2937; font-size: 14px; }
+  .mant-obs-row { font-size: 13px; color: #374151; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .mant-obs-row strong { flex: none; }
+  .mant-obs-row input {
+    flex: 1; min-width: 200px; border: none; border-bottom: 1px dashed #D1D5DB; background: transparent;
+    font: inherit; color: inherit; padding: 2px 0;
+  }
+  .mant-obs-row input:focus { outline: none; border-bottom-color: var(--brand); }
+  .mant-footer-grid { display: flex; gap: 24px; flex-wrap: wrap; border-top: 1px solid #F1F5F9; padding-top: 12px; }
+  .mant-footer-field { display: flex; flex-direction: column; gap: 3px; }
+  .mant-footer-field label { font-size: 12px; color: #6B7280; }
+  .mant-footer-field input[type="date"] {
+    border: none; background: transparent; font: inherit; font-weight: 700; color: #1F2937; padding: 0; cursor: pointer;
   }
 
   /* --- client modules dock: quick-launch buttons for per-client service logs --- */
@@ -574,10 +615,16 @@
   :root[data-theme="dark"] .tipo-unidad-unit-count { color: #7DD3FC; }
   :root[data-theme="dark"] .tipo-unidad-empty { color: #64748B; }
   :root[data-theme="dark"] .tipo-unidad-mini-table td { border-top-color: #334155; }
-  :root[data-theme="dark"] .mantenimiento-card { background: #1A2332; border-color: #334155; }
-  :root[data-theme="dark"] .mantenimiento-meta { color: #94A3B8; }
-  :root[data-theme="dark"] .mantenimiento-entrega label { color: #C4B5FD; }
-  :root[data-theme="dark"] .mantenimiento-entrega input { background: #0F172A; border-color: #334155; color: #E5E7EB; }
+  :root[data-theme="dark"] .mant-card { background: #1A2332; border-color: #334155; }
+  :root[data-theme="dark"] .mant-unidad, :root[data-theme="dark"] .mant-dias-fuera,
+  :root[data-theme="dark"] .mant-current-label { color: #E5E7EB; }
+  :root[data-theme="dark"] .mant-sub, :root[data-theme="dark"] .mant-historial-label,
+  :root[data-theme="dark"] .mant-stage-name, :root[data-theme="dark"] .mant-footer-field label { color: #94A3B8; }
+  :root[data-theme="dark"] .mant-obs-row { color: #CBD5E1; }
+  :root[data-theme="dark"] .mant-footer-field input[type="date"] { color: #E5E7EB; }
+  :root[data-theme="dark"] .mant-stage-col:hover { background: #0F172A; }
+  :root[data-theme="dark"] .mant-footer-grid { border-top-color: #334155; }
+  :root[data-theme="dark"] .mant-progress-seg { background: #334155; }
 </style>
 </head>
 <body>
@@ -1153,6 +1200,11 @@
     "Mantenimiento": { color: "#C62828", bg: "#FFEBEE" }
   };
 
+  // Fixed repair pipeline shown in the Mantenimiento tab's "Historial de
+  // estatus" bar. A unit's current stage is just an index into this array —
+  // everything before it reads as done, everything after as pending.
+  var MANT_ETAPAS = ["Reporte", "Diagnóstico", "Atendida", "Refacciones", "Compras", "Reparación", "Pruebas", "Liberada"];
+
   var DEFAULT_TOTAL_UNIDADES = 0;
   var lastCapture = null;
 
@@ -1359,6 +1411,10 @@
           var inpSucursal = tr.querySelector('input[data-field="sucursal"]');
           var inpTipoUnidad = tr.querySelector('input[data-field="tipoUnidad"]');
           var inpTiempoEntrega = tr.querySelector('input[data-field="tiempoEntrega"]');
+          var inpMantFechaReporte = tr.querySelector('input[data-field="mantFechaReporte"]');
+          var inpMantEtapa = tr.querySelector('input[data-field="mantEtapa"]');
+          var inpMantFechaSolicitud = tr.querySelector('input[data-field="mantFechaSolicitud"]');
+          var inpMantFechaEntrega = tr.querySelector('input[data-field="mantFechaEntrega"]');
           if (tdUnidad.textContent !== r.unidad) tdUnidad.textContent = r.unidad;
           if (document.activeElement !== inpOperador && inpOperador.value !== (r.operador || "")) {
             inpOperador.value = r.operador || "";
@@ -1429,6 +1485,18 @@
           }
           if (!mantenimientoActive && document.activeElement !== inpTiempoEntrega && inpTiempoEntrega.value !== (r.tiempoEntrega || "")) {
             inpTiempoEntrega.value = r.tiempoEntrega || "";
+          }
+          if (!mantenimientoActive && inpMantFechaReporte.value !== (r.mantFechaReporte || "")) {
+            inpMantFechaReporte.value = r.mantFechaReporte || "";
+          }
+          if (!mantenimientoActive && inpMantEtapa.value !== (r.mantEtapa || MANT_ETAPAS[0])) {
+            inpMantEtapa.value = r.mantEtapa || MANT_ETAPAS[0];
+          }
+          if (!mantenimientoActive && inpMantFechaSolicitud.value !== (r.mantFechaSolicitud || "")) {
+            inpMantFechaSolicitud.value = r.mantFechaSolicitud || "";
+          }
+          if (!mantenimientoActive && inpMantFechaEntrega.value !== (r.mantFechaEntrega || "")) {
+            inpMantFechaEntrega.value = r.mantFechaEntrega || "";
           }
           updateAvailabilityFromStatus(tr, sel.value);
         });
@@ -1517,6 +1585,10 @@
         sucursal: tr.querySelector('input[data-field="sucursal"]').value,
         tipoUnidad: tr.querySelector('input[data-field="tipoUnidad"]').value,
         tiempoEntrega: tr.querySelector('input[data-field="tiempoEntrega"]').value,
+        mantFechaReporte: tr.querySelector('input[data-field="mantFechaReporte"]').value,
+        mantEtapa: tr.querySelector('input[data-field="mantEtapa"]').value,
+        mantFechaSolicitud: tr.querySelector('input[data-field="mantFechaSolicitud"]').value,
+        mantFechaEntrega: tr.querySelector('input[data-field="mantFechaEntrega"]').value,
         enRuta: isEnRuta(tr)
       };
     });
@@ -1996,10 +2068,12 @@
   // an editable "Tiempo de entrega" field for the maintenance lead to fill
   // in. Writes straight into the matching row's hidden tiempoEntrega input
   // in the main table, so it syncs through the normal writeFullState path. ---
-  function renderMantenimientoTab() {
+  function renderMantenimientoTab(force) {
     var body = document.getElementById("mantenimientoBody");
-    // Don't rebuild out from under someone mid-keystroke in this tab.
-    if (document.activeElement && body.contains(document.activeElement)) return;
+    // Don't rebuild out from under someone mid-keystroke in this tab — unless
+    // this rebuild is the direct, immediate result of the user's own click/
+    // change on this tab (setMantField), which must repaint right away.
+    if (!force && document.activeElement && body.contains(document.activeElement)) return;
     body.innerHTML = "";
 
     var rows = collectRows().filter(function (r) { return r.status === "Mantenimiento"; });
@@ -2022,64 +2096,166 @@
     }
 
     rows.forEach(function (r) {
-      var card = document.createElement("div");
-      card.className = "mantenimiento-card";
-
-      var info = document.createElement("div");
-      info.className = "mantenimiento-info";
-      var nameEl = document.createElement("span");
-      nameEl.className = "mantenimiento-unidad";
-      nameEl.textContent = r.unidad;
-      info.appendChild(nameEl);
-      var metaBits = [r.sucursal, [r.contenedor, r.contenedor2].filter(function (v) { return v; }).join(" / "), r.operador]
-        .filter(function (v) { return v; });
-      var metaEl = document.createElement("span");
-      metaEl.className = "mantenimiento-meta";
-      metaEl.textContent = metaBits.length ? metaBits.join("  ·  ") : "Sin sucursal/tanque/operador registrado";
-      info.appendChild(metaEl);
-      card.appendChild(info);
-
-      var entregaWrap = document.createElement("div");
-      entregaWrap.className = "mantenimiento-entrega";
-      var label = document.createElement("label");
-      label.textContent = "Tiempo de entrega";
-      var inp = document.createElement("input");
-      inp.type = "text";
-      inp.placeholder = "Ej. 3 días, 15/11, en espera de refacción…";
-      inp.value = r.tiempoEntrega || "";
-      inp.addEventListener("input", function () {
-        var tr = tbody.querySelector('tr[data-row-id="' + r.id + '"]');
-        if (!tr) return;
-        tr.querySelector('input[data-field="tiempoEntrega"]').value = inp.value;
-        scheduleWrite();
-      });
-      entregaWrap.appendChild(label);
-      entregaWrap.appendChild(inp);
-      card.appendChild(entregaWrap);
-
-      // Same field as the "Observaciones" column in Estatus de Flota — this
-      // just gives it a second, more visible entry point while a unit is in
-      // mantenimiento, instead of a separate field to keep in sync.
-      var obsWrap = document.createElement("div");
-      obsWrap.className = "mantenimiento-entrega";
-      var obsLabel = document.createElement("label");
-      obsLabel.textContent = "Observaciones";
-      var obsInp = document.createElement("input");
-      obsInp.type = "text";
-      obsInp.placeholder = "Notas sobre esta unidad…";
-      obsInp.value = r.observaciones || "";
-      obsInp.addEventListener("input", function () {
-        var tr = tbody.querySelector('tr[data-row-id="' + r.id + '"]');
-        if (!tr) return;
-        tr.querySelector('input[data-field="observaciones"]').value = obsInp.value;
-        scheduleWrite();
-      });
-      obsWrap.appendChild(obsLabel);
-      obsWrap.appendChild(obsInp);
-      card.appendChild(obsWrap);
-
-      body.appendChild(card);
+      body.appendChild(buildMantCard(r));
     });
+  }
+
+  // Writes one field back into the unit's real row in Estatus de Flota
+  // (where it's actually synced from) and re-renders this tab so the
+  // progress bar / days-out / current-stage readout reflect the change.
+  function setMantField(rowId, fieldName, value) {
+    var tr = tbody.querySelector('tr[data-row-id="' + rowId + '"]');
+    if (!tr) return;
+    var el = tr.querySelector('[data-field="' + fieldName + '"]');
+    if (!el) return;
+    el.value = value;
+    scheduleWrite();
+    renderMantenimientoTab(true);
+  }
+
+  function diasFueraDeOperacion(fechaReporte) {
+    if (!fechaReporte) return null;
+    var start = new Date(fechaReporte + "T00:00:00");
+    if (isNaN(start.getTime())) return null;
+    var today = new Date();
+    var startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var diff = Math.round((startOfToday.getTime() - start.getTime()) / 86400000);
+    return diff >= 0 ? diff : 0;
+  }
+
+  function buildMantCard(r) {
+    var etapaIndex = Math.max(0, MANT_ETAPAS.indexOf(r.mantEtapa || MANT_ETAPAS[0]));
+    var isLiberada = etapaIndex === MANT_ETAPAS.length - 1;
+
+    var card = document.createElement("div");
+    card.className = "mant-card";
+
+    // --- header: unidad · sucursal, plus the "En mantenimiento" pill ---
+    var header = document.createElement("div");
+    header.className = "mant-header";
+    var unidadEl = document.createElement("span");
+    unidadEl.className = "mant-unidad";
+    unidadEl.textContent = r.unidad + (r.sucursal ? " · " + sucursalGroupOf(r.sucursal) : "");
+    header.appendChild(unidadEl);
+    var statusPill = document.createElement("span");
+    statusPill.className = "mant-pill mant-pill-orange";
+    statusPill.textContent = "En mantenimiento";
+    header.appendChild(statusPill);
+    card.appendChild(header);
+
+    // --- fecha de reporte + días fuera de operación ---
+    var sub = document.createElement("div");
+    sub.className = "mant-sub";
+    sub.appendChild(document.createTextNode("Fecha de reporte: "));
+    var fechaInp = document.createElement("input");
+    fechaInp.type = "date";
+    fechaInp.value = r.mantFechaReporte || "";
+    fechaInp.addEventListener("change", function () { setMantField(r.id, "mantFechaReporte", fechaInp.value); });
+    sub.appendChild(fechaInp);
+    card.appendChild(sub);
+
+    var dias = diasFueraDeOperacion(r.mantFechaReporte);
+    var diasEl = document.createElement("div");
+    diasEl.className = "mant-dias-fuera";
+    diasEl.textContent = dias === null
+      ? "Sin fecha de reporte registrada"
+      : dias + (dias === 1 ? " día fuera de operación" : " días fuera de operación");
+    card.appendChild(diasEl);
+
+    // --- historial de estatus: progress bar + clickable stage columns ---
+    var histLabel = document.createElement("div");
+    histLabel.className = "mant-historial-label";
+    histLabel.textContent = "Historial de estatus";
+    card.appendChild(histLabel);
+
+    var bar = document.createElement("div");
+    bar.className = "mant-progress-bar";
+    MANT_ETAPAS.forEach(function (etapa, i) {
+      var seg = document.createElement("div");
+      seg.className = "mant-progress-seg" + (i < etapaIndex ? " done" : i === etapaIndex ? " current" : "");
+      bar.appendChild(seg);
+    });
+    card.appendChild(bar);
+
+    var stagesRow = document.createElement("div");
+    stagesRow.className = "mant-stages-row";
+    MANT_ETAPAS.forEach(function (etapa, i) {
+      var col = document.createElement("button");
+      col.type = "button";
+      col.className = "mant-stage-col";
+      col.title = "Marcar como etapa actual";
+      var nameEl = document.createElement("span");
+      nameEl.className = "mant-stage-name";
+      nameEl.textContent = etapa;
+      var stateEl = document.createElement("span");
+      var state = i < etapaIndex ? "done" : i === etapaIndex ? "current" : "pending";
+      stateEl.className = "mant-stage-state " + state;
+      stateEl.textContent = state === "done" ? "Listo" : state === "current" ? "En proceso" : "Pendiente";
+      col.appendChild(nameEl);
+      col.appendChild(stateEl);
+      col.addEventListener("click", function () { setMantField(r.id, "mantEtapa", etapa); });
+      stagesRow.appendChild(col);
+    });
+    card.appendChild(stagesRow);
+
+    // --- estatus actual readout ---
+    var currentRow = document.createElement("div");
+    currentRow.className = "mant-current-row";
+    var currentLabel = document.createElement("span");
+    currentLabel.className = "mant-current-label";
+    currentLabel.textContent = "Estatus actual: " + MANT_ETAPAS[etapaIndex];
+    currentRow.appendChild(currentLabel);
+    var currentPill = document.createElement("span");
+    currentPill.className = "mant-pill " + (isLiberada ? "mant-pill-green" : "mant-pill-orange");
+    currentPill.textContent = isLiberada ? "Liberada" : "En proceso";
+    currentRow.appendChild(currentPill);
+    card.appendChild(currentRow);
+
+    // --- observaciones: same field as the Estatus de Flota column, just a
+    // more visible entry point while a unit is in mantenimiento. Pre-fills
+    // from the old free-text "tiempo de entrega" note the first time this
+    // card renders for a unit that has one but no observaciones yet, so
+    // nothing already written gets hidden by this redesign. ---
+    var obsRow = document.createElement("div");
+    obsRow.className = "mant-obs-row";
+    var obsStrong = document.createElement("strong");
+    obsStrong.textContent = "Observaciones:";
+    var obsInp = document.createElement("input");
+    obsInp.type = "text";
+    obsInp.placeholder = "Notas sobre esta unidad…";
+    obsInp.value = r.observaciones || r.tiempoEntrega || "";
+    obsInp.addEventListener("input", function () {
+      var tr = tbody.querySelector('tr[data-row-id="' + r.id + '"]');
+      if (!tr) return;
+      tr.querySelector('input[data-field="observaciones"]').value = obsInp.value;
+      scheduleWrite();
+    });
+    obsRow.appendChild(obsStrong);
+    obsRow.appendChild(obsInp);
+    card.appendChild(obsRow);
+
+    // --- footer: solicitud de refacciones / entrega estimada ---
+    var footer = document.createElement("div");
+    footer.className = "mant-footer-grid";
+    [
+      ["Solicitud de refacciones", "mantFechaSolicitud", r.mantFechaSolicitud],
+      ["Entrega estimada", "mantFechaEntrega", r.mantFechaEntrega]
+    ].forEach(function (f) {
+      var field = document.createElement("div");
+      field.className = "mant-footer-field";
+      var lbl = document.createElement("label");
+      lbl.textContent = f[0];
+      var dateInp = document.createElement("input");
+      dateInp.type = "date";
+      dateInp.value = f[2] || "";
+      dateInp.addEventListener("change", function () { setMantField(r.id, f[1], dateInp.value); });
+      field.appendChild(lbl);
+      field.appendChild(dateInp);
+      footer.appendChild(field);
+    });
+    card.appendChild(footer);
+
+    return card;
   }
 
   // --- client modules: per-client service log tables (dates/durations/status) ---
@@ -2917,6 +3093,25 @@
     inpTiempoEntrega.addEventListener("input", scheduleWrite);
     tdTiempoEntrega.appendChild(inpTiempoEntrega);
     tr.appendChild(tdTiempoEntrega);
+
+    // Repair-pipeline tracking fields — same pattern as Tiempo de entrega:
+    // hidden here, only shown/edited from the Mantenimiento tab's own card.
+    [
+      ["mantFechaReporte", rowData.mantFechaReporte],
+      ["mantEtapa", rowData.mantEtapa || MANT_ETAPAS[0]],
+      ["mantFechaSolicitud", rowData.mantFechaSolicitud],
+      ["mantFechaEntrega", rowData.mantFechaEntrega]
+    ].forEach(function (pair) {
+      var td = document.createElement("td");
+      td.className = "col-hideable";
+      var inp = document.createElement("input");
+      inp.type = "text";
+      inp.dataset.field = pair[0];
+      inp.value = pair[1] || "";
+      inp.addEventListener("input", scheduleWrite);
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
 
     return tr;
   }

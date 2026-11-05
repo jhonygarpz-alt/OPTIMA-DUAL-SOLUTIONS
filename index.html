@@ -344,6 +344,12 @@
   }
   tbody tr.sucursal-sep .sucursal-sep-inner { display: flex; align-items: center; gap: 10px; }
   tbody tr.sucursal-sep .group-select { accent-color: #fff; flex: none; }
+  tbody tr.sucursal-sep .btn-group-estatus {
+    margin-left: auto; flex: none; background: rgba(255,255,255,.18); color: #fff;
+    border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px;
+    font-weight: 600; letter-spacing: normal; cursor: pointer; white-space: nowrap;
+  }
+  tbody tr.sucursal-sep .btn-group-estatus:hover { background: rgba(255,255,255,.32); }
   tbody tr.sucursal-row:not(.row-unavailable) { background: var(--group-tint) !important; }
   tbody tr.sucursal-row.decade-sep td { border-top: 2px solid rgba(0,0,0,.2); }
   :root[data-theme="dark"] tbody tr.sucursal-row.decade-sep td { border-top-color: rgba(255,255,255,.3); }
@@ -1031,6 +1037,17 @@
     <div class="status-list" id="filtroEstatusOptionsList"></div>
     <div class="modal-actions">
       <button type="button" class="btn-reset" id="cancelFiltroEstatus">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalAplicarEstatus" hidden>
+  <div class="modal-card">
+    <h3>Estatus de operatividad</h3>
+    <p class="preview-hint" id="aplicarEstatusHint">Elige un estatus del catálogo para aplicarlo a las unidades marcadas de este grupo.</p>
+    <div class="status-list" id="aplicarEstatusOptionsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-reset" id="cancelAplicarEstatus">Cerrar</button>
     </div>
   </div>
 </div>
@@ -3695,6 +3712,57 @@
     modalFiltroEstatus.hidden = true;
   });
 
+  // --- Estatus de operatividad por grupo: bulk-apply a status (from the
+  // same statusOptions catalog) to whichever units in a sucursal/tipo
+  // group are currently checked via their row-select checkbox. Reuses the
+  // existing single-row status <select>'s own "change" handler (dispatching
+  // a real change event) instead of duplicating its side effects. ---
+  var modalAplicarEstatus = document.getElementById("modalAplicarEstatus");
+
+  function openAplicarEstatusPicker(rows, groupLabel) {
+    var checkedRows = rows.filter(function (tr) { return tr.querySelector(".row-select").checked; });
+    if (!checkedRows.length) {
+      window.alert("Marca al menos una unidad en \"" + groupLabel + "\" para aplicarle un estatus.");
+      return;
+    }
+    document.getElementById("aplicarEstatusHint").textContent =
+      "Elige un estatus del catálogo para aplicarlo a " + checkedRows.length +
+      (checkedRows.length === 1 ? " unidad marcada" : " unidades marcadas") + ' en "' + groupLabel + '".';
+
+    var list = document.getElementById("aplicarEstatusOptionsList");
+    list.innerHTML = "";
+    statusOptions.forEach(function (opt) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      row.style.backgroundColor = opt.bg;
+      row.style.color = opt.color;
+      var span = document.createElement("span");
+      span.textContent = opt.label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      btn.textContent = "Elegir";
+      btn.addEventListener("click", function () {
+        checkedRows.forEach(function (tr) {
+          var sel = tr.querySelector('select[data-field="status"]');
+          if (sel.value === opt.label) return;
+          sel.value = opt.label;
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        modalAplicarEstatus.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+
+    modalAplicarEstatus.hidden = false;
+  }
+
+  document.getElementById("cancelAplicarEstatus").addEventListener("click", function () {
+    modalAplicarEstatus.hidden = true;
+  });
+
   // --- Filtrar por sucursal: same modal-picker pattern as Filtrar por
   // estatus, options are the 7 real sucursales (SUCURSAL_GROUPS). ---
   var modalFiltroSucursal = document.getElementById("modalFiltroSucursal");
@@ -4102,6 +4170,15 @@
       var label = document.createElement("span");
       label.textContent = block.sucursal + " " + block.sub + "   ·   " + rows.length + (rows.length === 1 ? " unidad" : " unidades");
       inner.appendChild(label);
+
+      var btnGroupEstatus = document.createElement("button");
+      btnGroupEstatus.type = "button";
+      btnGroupEstatus.className = "btn-group-estatus";
+      btnGroupEstatus.textContent = "Estatus de operatividad";
+      btnGroupEstatus.addEventListener("click", function () {
+        openAplicarEstatusPicker(rows, block.sucursal + " " + block.sub);
+      });
+      inner.appendChild(btnGroupEstatus);
 
       td.appendChild(inner);
       sep.appendChild(td);

@@ -474,6 +474,76 @@
   .mant-footer-field input[type="date"] {
     border: none; background: transparent; font: inherit; font-weight: 700; color: #1F2937; padding: 0; cursor: pointer;
   }
+  .mant-placas { font-size: 12px; color: #6B7280; font-weight: 600; }
+
+  /* --- Mantenimiento toolbar: per-sucursal summary chips + sort order --- */
+  .mant-summary-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 14px; }
+  .mant-summary-chip {
+    display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+    background: #F1F5F9; font-size: 12px; font-weight: 700; color: #334155;
+  }
+  .mant-summary-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+  /* --- "Disponibilidad de flota" tab --- */
+  .disp-header { padding: 20px 24px 0; }
+  .disp-title { margin: 0; font-size: 20px; color: var(--brand); }
+  .disp-sub { margin: 4px 0 0; font-size: 13px; color: #6B7280; }
+  .disp-filters { display: flex; flex-wrap: wrap; gap: 20px; padding: 16px 24px; }
+  .disp-filter-field { display: flex; flex-direction: column; gap: 4px; }
+  .disp-filter-field label { font-size: 12px; font-weight: 600; color: #6B7280; }
+  .disp-stats-row { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 24px 20px; }
+  .disp-stat-card {
+    flex: 1 1 140px; min-width: 140px; border: 1px solid #E5E7EB; border-radius: 12px; padding: 14px 16px;
+  }
+  .disp-stat-label { font-size: 12px; color: #6B7280; font-weight: 600; }
+  .disp-stat-number { font-size: 26px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .disp-stat-pct { font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .disp-stat-card.total .disp-stat-number { color: #1F2937; }
+  .disp-stat-card.operativas .disp-stat-number, .disp-stat-card.operativas .disp-stat-pct { color: #16A34A; }
+  .disp-stat-card.mantenimiento .disp-stat-number, .disp-stat-card.mantenimiento .disp-stat-pct { color: #D97706; }
+  .disp-stat-card.fuera .disp-stat-number, .disp-stat-card.fuera .disp-stat-pct { color: #DC2626; }
+  .disp-section { padding: 0 24px 24px; }
+  .disp-section-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .disp-section-head h3 { margin: 0; font-size: 14px; color: #1F2937; }
+  .disp-total-label { font-size: 12px; color: #6B7280; }
+  .disp-toggle { display: flex; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }
+  .disp-toggle-btn {
+    padding: 5px 12px; border: none; background: #fff; color: #6B7280; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .disp-toggle-btn.active { background: var(--brand); color: #fff; }
+  .disp-bar { display: flex; height: 18px; border-radius: 9px; overflow: hidden; background: #E5E7EB; }
+  .disp-bar-seg { height: 100%; }
+  .disp-bar-seg.operativa { background: #22C55E; }
+  .disp-bar-seg.mantenimiento { background: #F59E0B; }
+  .disp-bar-seg.fuera { background: #EF4444; }
+  .disp-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 12px; color: #4B5563; }
+  .disp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .disp-legend .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .disp-sucursal-row { padding: 10px 0; border-bottom: 1px solid #F1F5F9; }
+  .disp-sucursal-row:last-child { border-bottom: none; }
+  .disp-sucursal-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .disp-sucursal-name { font-weight: 700; color: #1F2937; font-size: 14px; }
+  .disp-sucursal-meta { font-size: 12px; color: #6B7280; }
+  .disp-sucursal-bar-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .disp-sucursal-bar-row .disp-bar { flex: 1; }
+  .disp-sucursal-counts { display: flex; gap: 10px; flex: none; }
+  .disp-sucursal-counts span { font-size: 12px; font-weight: 700; min-width: 20px; text-align: right; }
+  .disp-sucursal-counts .operativa { color: #16A34A; }
+  .disp-sucursal-counts .mantenimiento { color: #D97706; }
+  .disp-sucursal-counts .fuera { color: #DC2626; }
+  .disp-tipo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .disp-tipo-card { border: 1px solid #E5E7EB; border-radius: 12px; padding: 12px 14px; }
+  .disp-tipo-name { font-weight: 700; color: #1F2937; font-size: 14px; }
+  .disp-tipo-count { font-size: 22px; font-weight: 800; color: #1F2937; margin-top: 2px; }
+  .disp-tipo-sub { font-size: 11px; color: #6B7280; margin-bottom: 8px; }
+  .disp-footer {
+    margin: 0 24px 24px; padding: 16px; border-radius: 12px; background: #F1F5F9;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .disp-footer-label { font-size: 12px; color: #6B7280; font-weight: 600; }
+  .disp-footer-pct { font-size: 24px; font-weight: 800; color: #16A34A; }
+  .disp-footer-frac { font-size: 13px; color: #4B5563; }
+  .disp-empty { padding: 30px 24px; text-align: center; color: #6B7280; font-size: 14px; }
 
   /* --- client modules dock: quick-launch buttons for per-client service logs --- */
   .client-modules-dock {
@@ -625,6 +695,24 @@
   :root[data-theme="dark"] .mant-stage-col:hover { background: #0F172A; }
   :root[data-theme="dark"] .mant-footer-grid { border-top-color: #334155; }
   :root[data-theme="dark"] .mant-progress-seg { background: #334155; }
+  :root[data-theme="dark"] .mant-placas { color: #94A3B8; }
+  :root[data-theme="dark"] .mant-summary-chip { background: #1E293B; color: #CBD5E1; }
+  :root[data-theme="dark"] .disp-sub, :root[data-theme="dark"] .disp-stat-label,
+  :root[data-theme="dark"] .disp-total-label, :root[data-theme="dark"] .disp-sucursal-meta,
+  :root[data-theme="dark"] .disp-tipo-sub, :root[data-theme="dark"] .disp-footer-label,
+  :root[data-theme="dark"] .disp-filter-field label { color: #94A3B8; }
+  :root[data-theme="dark"] .disp-section-head h3, :root[data-theme="dark"] .disp-stat-card.total .disp-stat-number,
+  :root[data-theme="dark"] .disp-sucursal-name, :root[data-theme="dark"] .disp-tipo-name,
+  :root[data-theme="dark"] .disp-tipo-count { color: #E5E7EB; }
+  :root[data-theme="dark"] .disp-stat-card, :root[data-theme="dark"] .disp-tipo-card { background: #1A2332; border-color: #334155; }
+  :root[data-theme="dark"] .disp-toggle { border-color: #334155; }
+  :root[data-theme="dark"] .disp-toggle-btn { background: #1A2332; color: #94A3B8; }
+  :root[data-theme="dark"] .disp-bar { background: #334155; }
+  :root[data-theme="dark"] .disp-legend { color: #CBD5E1; }
+  :root[data-theme="dark"] .disp-sucursal-row { border-bottom-color: #334155; }
+  :root[data-theme="dark"] .disp-footer { background: #1A2332; }
+  :root[data-theme="dark"] .disp-footer-frac { color: #CBD5E1; }
+  :root[data-theme="dark"] .disp-empty { color: #94A3B8; }
 </style>
 </head>
 <body>
@@ -661,6 +749,7 @@
       <button class="tab-btn" id="tabSucursales" type="button">Sucursales</button>
       <button class="tab-btn" id="tabTipoUnidad" type="button">Tracto / Remolques</button>
       <button class="tab-btn" id="tabMantenimiento" type="button">Mantenimiento</button>
+      <button class="tab-btn" id="tabDisponibilidad" type="button">Disponibilidad</button>
     </div>
 
     <div id="panelEstatus">
@@ -761,9 +850,80 @@
     <div id="panelMantenimiento" hidden>
       <div class="clientes-toolbar">
         <span class="clientes-count" id="mantenimientoCount">0 unidades en mantenimiento</span>
-        <button class="btn-reset btn-small" id="btnFiltroMantenimientoSucursal" type="button">Filtrar por sucursal (todas)</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-reset btn-small" id="btnOrdenMantenimiento" type="button">Más antiguas primero</button>
+          <button class="btn-reset btn-small" id="btnFiltroMantenimientoSucursal" type="button">Filtrar por sucursal (todas)</button>
+        </div>
       </div>
+      <div class="mant-summary-row" id="mantSummaryRow"></div>
       <div class="mantenimiento-list" id="mantenimientoBody"></div>
+    </div>
+
+    <div id="panelDisponibilidad" hidden>
+      <div class="disp-header">
+        <h2 class="disp-title">Disponibilidad de flota</h2>
+        <p class="disp-sub">Control operativo por sucursal y tipo de unidad</p>
+      </div>
+      <div class="disp-filters">
+        <div class="disp-filter-field">
+          <label>Sucursal</label>
+          <button class="btn-reset btn-small" id="btnDispFiltroSucursal" type="button">Todas las sucursales</button>
+        </div>
+        <div class="disp-filter-field">
+          <label>Tipo de unidad</label>
+          <button class="btn-reset btn-small" id="btnDispFiltroTipo" type="button">Todos los tipos</button>
+        </div>
+      </div>
+      <div class="disp-stats-row" id="dispStatsRow"></div>
+      <div class="disp-section">
+        <div class="disp-section-head">
+          <h3>Distribución general</h3>
+          <span class="disp-total-label" id="dispTotalLabel"></span>
+        </div>
+        <div class="disp-bar" id="dispGeneralBar"></div>
+        <div class="disp-legend">
+          <span><i class="dot" style="background:#22C55E"></i> Operativas</span>
+          <span><i class="dot" style="background:#F59E0B"></i> Mantenimiento</span>
+          <span><i class="dot" style="background:#EF4444"></i> Fuera de operación</span>
+        </div>
+      </div>
+      <div class="disp-section">
+        <div class="disp-section-head">
+          <h3>Disponibilidad por sucursal</h3>
+          <div class="disp-toggle">
+            <button type="button" class="disp-toggle-btn active" id="dispModoUnidades">Unidades</button>
+            <button type="button" class="disp-toggle-btn" id="dispModoPorcentaje">Porcentaje</button>
+          </div>
+        </div>
+        <div id="dispSucursalRows"></div>
+      </div>
+      <div class="disp-section">
+        <h3 style="margin:0 0 10px;">Distribución por tipo de unidad</h3>
+        <div class="disp-tipo-grid" id="dispTipoGrid"></div>
+      </div>
+      <div class="disp-footer" id="dispFooter"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalDispFiltroSucursal" hidden>
+    <div class="modal-card">
+      <h3>Filtrar por sucursal</h3>
+      <p class="preview-hint">Elige una sucursal, o "Todas" para ver la flota completa.</p>
+      <div class="status-list" id="dispFiltroSucursalOptionsList"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-reset" id="cancelDispFiltroSucursal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalDispFiltroTipo" hidden>
+    <div class="modal-card">
+      <h3>Filtrar por tipo de unidad</h3>
+      <p class="preview-hint">Elige un tipo, o "Todos" para ver la flota completa.</p>
+      <div class="status-list" id="dispFiltroTipoOptionsList"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-reset" id="cancelDispFiltroTipo">Cerrar</button>
+      </div>
     </div>
   </div>
 
@@ -1167,6 +1327,29 @@
   }
   var TIPO_SUBGROUP_ORDER = ["TANQUES", "TRACTOS", "OTROS"];
 
+  // Finer-grained categories for the "Disponibilidad de flota" dashboard —
+  // same underlying Tipo de Unidad values as above, just split into one
+  // bucket per vehicle type instead of the 2-bucket Tanques/Tractos split
+  // the main table uses for its page switcher.
+  var TIPO_CATEGORIA_ORDER = ["Tractos", "Tanques", "Dollys", "Tortón", "Otros"];
+  function tipoCategoriaOf(v) {
+    v = (v || "").trim().toUpperCase();
+    if (v === "TRACTOCAMION") return "Tractos";
+    if (v === "TANQUE") return "Tanques";
+    if (v === "DOLLY") return "Dollys";
+    if (v === "TORTON") return "Tortón";
+    return "Otros";
+  }
+
+  // "Fuera de operación" reuses the same UNAVAILABLE_STATUS concept already
+  // used for the "NO DISPONIBLE" badge elsewhere — just a friendlier label
+  // for the dashboard, not a second, separately-tracked notion of outage.
+  function disponibilidadCategoriaOf(status) {
+    if (status === "Mantenimiento") return "mantenimiento";
+    if (status === UNAVAILABLE_STATUS) return "fuera";
+    return "operativa";
+  }
+
   // Mutable, synced list of vehicle categories (tracto, remolques y demás) —
   // feeds itself just like Sucursal/Cliente.
   var tipoUnidadConocidos = ["AUTOMOVIL", "CAMIONETA", "DOLLY", "PICKUP", "RABON", "TANQUE", "TORTON", "TRACTOCAMION"];
@@ -1512,6 +1695,7 @@
         updateUnidadesLabel();
         regroupRows();
         if (!panelMantenimiento.hidden) renderMantenimientoTab();
+        if (!panelDisponibilidad.hidden) renderDisponibilidadTab();
         if (neededMigrationWrite) {
           clearTimeout(writeTimer);
           writeFullState();
@@ -2068,6 +2252,11 @@
   // an editable "Tiempo de entrega" field for the maintenance lead to fill
   // in. Writes straight into the matching row's hidden tiempoEntrega input
   // in the main table, so it syncs through the normal writeFullState path. ---
+  // "asc" = fechas más antiguas primero (cola de atención por antigüedad);
+  // "desc" = más recientes primero. Units with no fecha de reporte yet are
+  // always pushed to the end, in either order — there's nothing to sort.
+  var mantSortOrder = "asc";
+
   function renderMantenimientoTab(force) {
     var body = document.getElementById("mantenimientoBody");
     // Don't rebuild out from under someone mid-keystroke in this tab — unless
@@ -2076,11 +2265,41 @@
     if (!force && document.activeElement && body.contains(document.activeElement)) return;
     body.innerHTML = "";
 
-    var rows = collectRows().filter(function (r) { return r.status === "Mantenimiento"; });
+    var allMantRows = collectRows().filter(function (r) { return r.status === "Mantenimiento"; });
+
+    // Summary chips always reflect every sucursal with units in
+    // mantenimiento, regardless of the filter below — it's the "where do I
+    // have units down" overview the filter then lets you drill into.
+    var summaryRow = document.getElementById("mantSummaryRow");
+    summaryRow.innerHTML = "";
+    var countsBySucursal = {};
+    allMantRows.forEach(function (r) {
+      var g = sucursalGroupOf(r.sucursal);
+      countsBySucursal[g] = (countsBySucursal[g] || 0) + 1;
+    });
+    SUCURSAL_GROUPS.forEach(function (g) {
+      if (!countsBySucursal[g]) return;
+      var chip = document.createElement("span");
+      chip.className = "mant-summary-chip";
+      var dot = document.createElement("i");
+      dot.className = "dot";
+      dot.style.background = (SUCURSAL_GROUP_COLORS[g] || SUCURSAL_GROUP_COLORS.OTRAS).band;
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(g + ": " + countsBySucursal[g]));
+      summaryRow.appendChild(chip);
+    });
+
+    var rows = allMantRows;
     if (activeMantenimientoSucursalFilter.length) {
       rows = rows.filter(function (r) { return activeMantenimientoSucursalFilter.indexOf(sucursalGroupOf(r.sucursal)) !== -1; });
     }
-    rows.sort(function (a, b) { return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" }); });
+    rows.sort(function (a, b) {
+      if (!a.mantFechaReporte && !b.mantFechaReporte) return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" });
+      if (!a.mantFechaReporte) return 1;
+      if (!b.mantFechaReporte) return -1;
+      var cmp = a.mantFechaReporte.localeCompare(b.mantFechaReporte);
+      return mantSortOrder === "asc" ? cmp : -cmp;
+    });
 
     document.getElementById("mantenimientoCount").textContent =
       rows.length + (rows.length === 1 ? " unidad en mantenimiento" : " unidades en mantenimiento");
@@ -2099,6 +2318,12 @@
       body.appendChild(buildMantCard(r));
     });
   }
+
+  document.getElementById("btnOrdenMantenimiento").addEventListener("click", function () {
+    mantSortOrder = mantSortOrder === "asc" ? "desc" : "asc";
+    this.textContent = mantSortOrder === "asc" ? "Más antiguas primero" : "Más recientes primero";
+    renderMantenimientoTab(true);
+  });
 
   // Writes one field back into the unit's real row in Estatus de Flota
   // (where it's actually synced from) and re-renders this tab so the
@@ -2133,10 +2358,18 @@
     // --- header: unidad · sucursal, plus the "En mantenimiento" pill ---
     var header = document.createElement("div");
     header.className = "mant-header";
-    var unidadEl = document.createElement("span");
+    var headerLeft = document.createElement("div");
+    var unidadEl = document.createElement("div");
     unidadEl.className = "mant-unidad";
     unidadEl.textContent = r.unidad + (r.sucursal ? " · " + sucursalGroupOf(r.sucursal) : "");
-    header.appendChild(unidadEl);
+    headerLeft.appendChild(unidadEl);
+    if (r.placasTractor) {
+      var placasEl = document.createElement("div");
+      placasEl.className = "mant-placas";
+      placasEl.textContent = "Placas: " + r.placasTractor;
+      headerLeft.appendChild(placasEl);
+    }
+    header.appendChild(headerLeft);
     var statusPill = document.createElement("span");
     statusPill.className = "mant-pill mant-pill-orange";
     statusPill.textContent = "En mantenimiento";
@@ -2257,6 +2490,250 @@
 
     return card;
   }
+
+  // --- "Disponibilidad de flota" tab: read-only dashboard over the same
+  // rows, split by sucursal and tipo de unidad into operativa/mantenimiento/
+  // fuera de operación. ---
+  var dispActiveSucursal = "";
+  var dispActiveTipo = "";
+  var dispModo = "unidades"; // "unidades" | "porcentaje"
+
+  function dispCounts(rows) {
+    var c = { total: rows.length, operativa: 0, mantenimiento: 0, fuera: 0 };
+    rows.forEach(function (r) { c[disponibilidadCategoriaOf(r.status)]++; });
+    return c;
+  }
+
+  function dispPct(part, total) {
+    return total ? Math.round((part / total) * 100) : 0;
+  }
+
+  function buildDispBar(c) {
+    var bar = document.createElement("div");
+    bar.className = "disp-bar";
+    [["operativa", c.operativa], ["mantenimiento", c.mantenimiento], ["fuera", c.fuera]].forEach(function (pair) {
+      if (!pair[1]) return;
+      var seg = document.createElement("div");
+      seg.className = "disp-bar-seg " + pair[0];
+      seg.style.width = dispPct(pair[1], c.total) + "%";
+      bar.appendChild(seg);
+    });
+    return bar;
+  }
+
+  function renderDisponibilidadTab() {
+    var allRows = collectRows();
+    var rows = allRows;
+    if (dispActiveSucursal) rows = rows.filter(function (r) { return sucursalGroupOf(r.sucursal) === dispActiveSucursal; });
+    if (dispActiveTipo) rows = rows.filter(function (r) { return tipoCategoriaOf(r.tipoUnidad) === dispActiveTipo; });
+
+    if (!rows.length) {
+      document.getElementById("dispStatsRow").innerHTML = "";
+      document.getElementById("dispGeneralBar").innerHTML = "";
+      document.getElementById("dispTotalLabel").textContent = "";
+      document.getElementById("dispSucursalRows").innerHTML = '<div class="disp-empty">No hay unidades que coincidan con este filtro.</div>';
+      document.getElementById("dispTipoGrid").innerHTML = "";
+      document.getElementById("dispFooter").innerHTML = "";
+      return;
+    }
+
+    var c = dispCounts(rows);
+
+    // stat cards
+    var statsRow = document.getElementById("dispStatsRow");
+    statsRow.innerHTML = "";
+    [
+      ["total", "Flota total", c.total, null],
+      ["operativas", "Operativas", c.operativa, dispPct(c.operativa, c.total)],
+      ["mantenimiento", "Mantenimiento", c.mantenimiento, dispPct(c.mantenimiento, c.total)],
+      ["fuera", "Fuera de operación", c.fuera, dispPct(c.fuera, c.total)]
+    ].forEach(function (s) {
+      var card = document.createElement("div");
+      card.className = "disp-stat-card " + s[0];
+      var label = document.createElement("div");
+      label.className = "disp-stat-label";
+      label.textContent = s[1];
+      var number = document.createElement("div");
+      number.className = "disp-stat-number";
+      number.textContent = s[2];
+      card.appendChild(label);
+      card.appendChild(number);
+      if (s[3] !== null) {
+        var pct = document.createElement("div");
+        pct.className = "disp-stat-pct";
+        pct.textContent = s[3] + "%";
+        card.appendChild(pct);
+      }
+      statsRow.appendChild(card);
+    });
+
+    // distribución general
+    document.getElementById("dispTotalLabel").textContent = c.total + (c.total === 1 ? " unidad" : " unidades");
+    var generalBar = document.getElementById("dispGeneralBar");
+    generalBar.innerHTML = "";
+    generalBar.appendChild(buildDispBar(c));
+
+    // disponibilidad por sucursal
+    var sucursalRows = document.getElementById("dispSucursalRows");
+    sucursalRows.innerHTML = "";
+    SUCURSAL_GROUPS.forEach(function (g) {
+      var groupRows = rows.filter(function (r) { return sucursalGroupOf(r.sucursal) === g; });
+      if (!groupRows.length) return;
+      var gc = dispCounts(groupRows);
+      var row = document.createElement("div");
+      row.className = "disp-sucursal-row";
+      var top = document.createElement("div");
+      top.className = "disp-sucursal-top";
+      var name = document.createElement("span");
+      name.className = "disp-sucursal-name";
+      name.textContent = g;
+      var meta = document.createElement("span");
+      meta.className = "disp-sucursal-meta";
+      meta.textContent = gc.total + (gc.total === 1 ? " unidad · " : " unidades · ") + dispPct(gc.operativa, gc.total) + "% disponible";
+      top.appendChild(name);
+      top.appendChild(meta);
+      row.appendChild(top);
+
+      var barRow = document.createElement("div");
+      barRow.className = "disp-sucursal-bar-row";
+      barRow.appendChild(buildDispBar(gc));
+      var counts = document.createElement("div");
+      counts.className = "disp-sucursal-counts";
+      [["operativa", gc.operativa], ["mantenimiento", gc.mantenimiento], ["fuera", gc.fuera]].forEach(function (pair) {
+        var span = document.createElement("span");
+        span.className = pair[0];
+        span.textContent = dispModo === "porcentaje" ? dispPct(pair[1], gc.total) + "%" : String(pair[1]);
+        counts.appendChild(span);
+      });
+      barRow.appendChild(counts);
+      row.appendChild(barRow);
+      sucursalRows.appendChild(row);
+    });
+
+    // distribución por tipo de unidad
+    var tipoGrid = document.getElementById("dispTipoGrid");
+    tipoGrid.innerHTML = "";
+    TIPO_CATEGORIA_ORDER.forEach(function (cat) {
+      var catRows = rows.filter(function (r) { return tipoCategoriaOf(r.tipoUnidad) === cat; });
+      if (!catRows.length) return;
+      var tc = dispCounts(catRows);
+      var card = document.createElement("div");
+      card.className = "disp-tipo-card";
+      var name = document.createElement("div");
+      name.className = "disp-tipo-name";
+      name.textContent = cat;
+      var count = document.createElement("div");
+      count.className = "disp-tipo-count";
+      count.textContent = tc.total;
+      var sub = document.createElement("div");
+      sub.className = "disp-tipo-sub";
+      sub.textContent = "unidades registradas";
+      card.appendChild(name);
+      card.appendChild(count);
+      card.appendChild(sub);
+      card.appendChild(buildDispBar(tc));
+      tipoGrid.appendChild(card);
+    });
+
+    // footer
+    var footer = document.getElementById("dispFooter");
+    footer.innerHTML = "";
+    var fLabel = document.createElement("div");
+    fLabel.className = "disp-footer-label";
+    fLabel.textContent = "Disponibilidad operativa";
+    var fPct = document.createElement("div");
+    fPct.className = "disp-footer-pct";
+    fPct.textContent = dispPct(c.operativa, c.total) + "%";
+    var fFrac = document.createElement("div");
+    fFrac.className = "disp-footer-frac";
+    fFrac.textContent = c.operativa + " de " + c.total + " unidades disponibles";
+    footer.appendChild(fLabel);
+    footer.appendChild(fPct);
+    footer.appendChild(fFrac);
+  }
+
+  document.getElementById("dispModoUnidades").addEventListener("click", function () {
+    dispModo = "unidades";
+    this.classList.add("active");
+    document.getElementById("dispModoPorcentaje").classList.remove("active");
+    renderDisponibilidadTab();
+  });
+  document.getElementById("dispModoPorcentaje").addEventListener("click", function () {
+    dispModo = "porcentaje";
+    this.classList.add("active");
+    document.getElementById("dispModoUnidades").classList.remove("active");
+    renderDisponibilidadTab();
+  });
+
+  var btnDispFiltroSucursal = document.getElementById("btnDispFiltroSucursal");
+  var modalDispFiltroSucursal = document.getElementById("modalDispFiltroSucursal");
+  function openDispFiltroSucursalPicker() {
+    var list = document.getElementById("dispFiltroSucursalOptionsList");
+    list.innerHTML = "";
+    function addOption(label, value) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      var isActive = dispActiveSucursal === value;
+      btn.textContent = isActive ? "Activo" : "Elegir";
+      btn.disabled = isActive;
+      btn.addEventListener("click", function () {
+        dispActiveSucursal = value;
+        btnDispFiltroSucursal.textContent = value || "Todas las sucursales";
+        renderDisponibilidadTab();
+        modalDispFiltroSucursal.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+    addOption("Todas las sucursales", "");
+    SUCURSAL_GROUPS.forEach(function (g) { addOption(g, g); });
+    modalDispFiltroSucursal.hidden = false;
+  }
+  btnDispFiltroSucursal.addEventListener("click", openDispFiltroSucursalPicker);
+  document.getElementById("cancelDispFiltroSucursal").addEventListener("click", function () {
+    modalDispFiltroSucursal.hidden = true;
+  });
+
+  var btnDispFiltroTipo = document.getElementById("btnDispFiltroTipo");
+  var modalDispFiltroTipo = document.getElementById("modalDispFiltroTipo");
+  function openDispFiltroTipoPicker() {
+    var list = document.getElementById("dispFiltroTipoOptionsList");
+    list.innerHTML = "";
+    function addOption(label, value) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      var isActive = dispActiveTipo === value;
+      btn.textContent = isActive ? "Activo" : "Elegir";
+      btn.disabled = isActive;
+      btn.addEventListener("click", function () {
+        dispActiveTipo = value;
+        btnDispFiltroTipo.textContent = value || "Todos los tipos";
+        renderDisponibilidadTab();
+        modalDispFiltroTipo.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+    addOption("Todos los tipos", "");
+    TIPO_CATEGORIA_ORDER.forEach(function (cat) { addOption(cat, cat); });
+    modalDispFiltroTipo.hidden = false;
+  }
+  btnDispFiltroTipo.addEventListener("click", openDispFiltroTipoPicker);
+  document.getElementById("cancelDispFiltroTipo").addEventListener("click", function () {
+    modalDispFiltroTipo.hidden = true;
+  });
 
   // --- client modules: per-client service log tables (dates/durations/status) ---
   function computeDuration(startStr, endStr) {
@@ -2640,6 +3117,7 @@
   var panelSucursales = document.getElementById("panelSucursales");
   var panelTipoUnidad = document.getElementById("panelTipoUnidad");
   var panelMantenimiento = document.getElementById("panelMantenimiento");
+  var panelDisponibilidad = document.getElementById("panelDisponibilidad");
 
   function createRowElement(rowData) {
     var tr = document.createElement("tr");
@@ -2983,6 +3461,7 @@
       sel.dataset.prevStatus = sel.value;
       scheduleWrite();
       if (!panelMantenimiento.hidden) renderMantenimientoTab();
+      if (!panelDisponibilidad.hidden) renderDisponibilidadTab();
       if (activeFlotaStatusFilter) applyFlotaPageVisibility();
     });
     statusWrap.appendChild(sel);
@@ -5029,9 +5508,10 @@
   var tabSucursales = document.getElementById("tabSucursales");
   var tabTipoUnidad = document.getElementById("tabTipoUnidad");
   var tabMantenimiento = document.getElementById("tabMantenimiento");
+  var tabDisponibilidad = document.getElementById("tabDisponibilidad");
   function activateTab(tabBtn, panel) {
-    [tabEstatus, tabClientes, tabSucursales, tabTipoUnidad, tabMantenimiento].forEach(function (b) { b.classList.toggle("active", b === tabBtn); });
-    [panelEstatus, panelClientes, panelSucursales, panelTipoUnidad, panelMantenimiento].forEach(function (p) { p.hidden = p !== panel; });
+    [tabEstatus, tabClientes, tabSucursales, tabTipoUnidad, tabMantenimiento, tabDisponibilidad].forEach(function (b) { b.classList.toggle("active", b === tabBtn); });
+    [panelEstatus, panelClientes, panelSucursales, panelTipoUnidad, panelMantenimiento, panelDisponibilidad].forEach(function (p) { p.hidden = p !== panel; });
   }
   tabEstatus.addEventListener("click", function () { activateTab(tabEstatus, panelEstatus); });
   tabClientes.addEventListener("click", function () {
@@ -5049,6 +5529,10 @@
   tabMantenimiento.addEventListener("click", function () {
     activateTab(tabMantenimiento, panelMantenimiento);
     renderMantenimientoTab();
+  });
+  tabDisponibilidad.addEventListener("click", function () {
+    activateTab(tabDisponibilidad, panelDisponibilidad);
+    renderDisponibilidadTab();
   });
 
   // --- add-client modal ---

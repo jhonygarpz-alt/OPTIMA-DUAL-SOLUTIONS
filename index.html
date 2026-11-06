@@ -1564,12 +1564,6 @@
           existingById[tr.dataset.rowId] = tr;
         });
         var seenIds = {};
-        // Tiempo de entrega is edited from a separate visible input in the
-        // Mantenimiento tab, not the hidden one this loop normally guards
-        // via document.activeElement — so while that tab has focus, skip
-        // syncing tiempoEntrega entirely this round instead of clobbering
-        // whatever's mid-keystroke there with stale remote data.
-        var mantenimientoActive = document.activeElement && panelMantenimiento.contains(document.activeElement);
 
         data.rows.forEach(function (r, idx) {
           var hasRealId = !!r.id;
@@ -1589,6 +1583,20 @@
             tbody.appendChild(tr);
             return;
           }
+
+          // Tiempo de entrega, Observaciones, and the Mantenimiento pipeline
+          // fields are edited from a separate visible card in the
+          // Mantenimiento tab (not nested inside this hidden <tr> at all),
+          // so while THIS ROW's card has focus, skip syncing those fields
+          // for THIS ROW only, instead of clobbering whatever's
+          // mid-keystroke there with stale remote data. Scoped to the row
+          // being edited — not the whole Mantenimiento tab — so one card
+          // open for a long edit can't block every other unit's progress
+          // from syncing and then wipe it on this client's next unrelated
+          // write.
+          var activeMantCard = document.activeElement ? document.activeElement.closest(".mant-card") : null;
+          var rowMantActive = (document.activeElement && tr.contains(document.activeElement)) ||
+            (activeMantCard && activeMantCard.dataset.rowId === rid);
 
           var tdUnidad = tr.querySelector("td.unidad .unidad-text");
           var inpOperador = tr.querySelector('input[data-field="operador"]');
@@ -1674,7 +1682,7 @@
           if (document.activeElement !== inpCliente && inpCliente.value !== (r.cliente || "")) {
             inpCliente.value = r.cliente || "";
           }
-          if (!mantenimientoActive && document.activeElement !== inpObservaciones && inpObservaciones.value !== (r.observaciones || "")) {
+          if (!rowMantActive && document.activeElement !== inpObservaciones && inpObservaciones.value !== (r.observaciones || "")) {
             inpObservaciones.value = r.observaciones || "";
           }
           if (document.activeElement !== inpSucursal && inpSucursal.value !== (r.sucursal || "")) {
@@ -1683,19 +1691,19 @@
           if (document.activeElement !== inpTipoUnidad && inpTipoUnidad.value !== (r.tipoUnidad || "")) {
             inpTipoUnidad.value = r.tipoUnidad || "";
           }
-          if (!mantenimientoActive && document.activeElement !== inpTiempoEntrega && inpTiempoEntrega.value !== (r.tiempoEntrega || "")) {
+          if (!rowMantActive && document.activeElement !== inpTiempoEntrega && inpTiempoEntrega.value !== (r.tiempoEntrega || "")) {
             inpTiempoEntrega.value = r.tiempoEntrega || "";
           }
-          if (!mantenimientoActive && inpMantFechaReporte.value !== (r.mantFechaReporte || "")) {
+          if (!rowMantActive && inpMantFechaReporte.value !== (r.mantFechaReporte || "")) {
             inpMantFechaReporte.value = r.mantFechaReporte || "";
           }
-          if (!mantenimientoActive && inpMantEtapa.value !== (r.mantEtapa || MANT_ETAPAS[0])) {
+          if (!rowMantActive && inpMantEtapa.value !== (r.mantEtapa || MANT_ETAPAS[0])) {
             inpMantEtapa.value = r.mantEtapa || MANT_ETAPAS[0];
           }
-          if (!mantenimientoActive && inpMantFechaSolicitud.value !== (r.mantFechaSolicitud || "")) {
+          if (!rowMantActive && inpMantFechaSolicitud.value !== (r.mantFechaSolicitud || "")) {
             inpMantFechaSolicitud.value = r.mantFechaSolicitud || "";
           }
-          if (!mantenimientoActive && inpMantFechaEntrega.value !== (r.mantFechaEntrega || "")) {
+          if (!rowMantActive && inpMantFechaEntrega.value !== (r.mantFechaEntrega || "")) {
             inpMantFechaEntrega.value = r.mantFechaEntrega || "";
           }
           updateAvailabilityFromStatus(tr, sel.value);
@@ -2371,6 +2379,7 @@
 
     var card = document.createElement("div");
     card.className = "mant-card";
+    card.dataset.rowId = r.id;
 
     // --- header: unidad · sucursal, plus the "En mantenimiento" pill ---
     var header = document.createElement("div");

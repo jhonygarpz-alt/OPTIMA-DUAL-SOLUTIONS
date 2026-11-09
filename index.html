@@ -481,6 +481,14 @@
     border: none; background: transparent; font: inherit; font-weight: 700; color: #1F2937; padding: 0; cursor: pointer;
   }
   .mant-placas { font-size: 12px; color: #6B7280; font-weight: 600; }
+  .mant-partes { font-size: 12px; color: #C2410C; font-weight: 700; }
+  .mant-lugar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .mant-lugar-label { font-size: 12px; font-weight: 600; color: #6B7280; }
+  .mant-lugar-btn {
+    padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid #D7E6ED;
+    background: #F8FAFC; color: #6B7280; cursor: pointer;
+  }
+  .mant-lugar-btn.active { background: #EFF6FF; border-color: #93C5FD; color: #1D4ED8; }
 
   /* --- Mantenimiento toolbar: per-sucursal summary chips + sort order --- */
   .mant-summary-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 14px; }
@@ -702,6 +710,10 @@
   :root[data-theme="dark"] .mant-footer-grid { border-top-color: #334155; }
   :root[data-theme="dark"] .mant-progress-seg { background: #334155; }
   :root[data-theme="dark"] .mant-placas { color: #94A3B8; }
+  :root[data-theme="dark"] .mant-partes { color: #FB923C; }
+  :root[data-theme="dark"] .mant-lugar-label { color: #94A3B8; }
+  :root[data-theme="dark"] .mant-lugar-btn { background: #1E293B; border-color: #334155; color: #94A3B8; }
+  :root[data-theme="dark"] .mant-lugar-btn.active { background: #1E3A5F; border-color: #3B82F6; color: #93C5FD; }
   :root[data-theme="dark"] .mant-summary-chip { background: #1E293B; color: #CBD5E1; }
   :root[data-theme="dark"] .disp-sub, :root[data-theme="dark"] .disp-stat-label,
   :root[data-theme="dark"] .disp-total-label, :root[data-theme="dark"] .disp-sucursal-meta,
@@ -857,8 +869,13 @@
       <div class="clientes-toolbar">
         <span class="clientes-count" id="mantenimientoCount">0 unidades en mantenimiento</span>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn-reset btn-small" id="btnOrdenMantenimiento" type="button">Más antiguas primero</button>
+          <button class="btn-reset btn-small" id="btnOrdenMantenimiento" type="button">Más recientes primero</button>
           <button class="btn-reset btn-small" id="btnFiltroMantenimientoSucursal" type="button">Filtrar por sucursal (todas)</button>
+          <div class="disp-toggle" id="mantFiltroLugarToggle">
+            <button type="button" class="disp-toggle-btn active" data-lugar="">Todos</button>
+            <button type="button" class="disp-toggle-btn" data-lugar="Interno">Interno</button>
+            <button type="button" class="disp-toggle-btn" data-lugar="Externo">Externo</button>
+          </div>
         </div>
       </div>
       <div class="mant-summary-row" id="mantSummaryRow"></div>
@@ -1170,6 +1187,11 @@
     { label: "Entregado", color: "#1D4ED8", bg: "#DBEAFE" },
     { label: "Sin comunicación", color: "#4B5563", bg: "#F3F4F6" },
     { label: "Mantenimiento", color: "#7C3AED", bg: "#EDE9FE" }
+    // "Disponible" (used when a repair reaches "Liberada") is NOT listed
+    // here — it's added by the "ensure it exists" check in
+    // applyRemoteState, which runs for a brand-new row just the same as
+    // for one migrating in, so there's one color-picking code path instead
+    // of two that could disagree.
   ];
   var EXTRA_STATUS_PALETTE = [
     { color: "#0E7490", bg: "#CFFAFE" },
@@ -1367,6 +1389,23 @@
     return "operativa";
   }
 
+  // A row belongs in the Mantenimiento tab if the tractor itself is
+  // "Mantenimiento" OR any of its equipment (tanque 1, dolly, tanque 2) is —
+  // a trailer can need service while the unit towing it is still out on a
+  // trip. Returns which part(s) triggered it, for the card's own label.
+  var MANT_PARTES = [
+    ["status", "Unidad"],
+    ["estatusTanque1", "Tanque 1"],
+    ["estatusDolly", "Dolly"],
+    ["estatusTanque2", "Tanque 2"]
+  ];
+  function mantenimientoPartesOf(r) {
+    return MANT_PARTES.filter(function (p) { return r[p[0]] === "Mantenimiento"; }).map(function (p) { return p[1]; });
+  }
+  function rowNeedsMantenimiento(r) {
+    return mantenimientoPartesOf(r).length > 0;
+  }
+
   // Mutable, synced list of vehicle categories (tracto, remolques y demás) —
   // feeds itself just like Sucursal/Cliente.
   var tipoUnidadConocidos = ["AUTOMOVIL", "CAMIONETA", "DOLLY", "PICKUP", "RABON", "TANQUE", "TORTON", "TRACTOCAMION"];
@@ -1404,6 +1443,38 @@
   // estatus" bar. A unit's current stage is just an index into this array —
   // everything before it reads as done, everything after as pending.
   var MANT_ETAPAS = ["Reporte", "Diagnóstico", "Atendida", "Refacciones", "Compras", "Reparación", "Pruebas", "Liberada"];
+
+  var MANT_TRIGGER_FIELDS = ["status", "estatusTanque1", "estatusDolly", "estatusTanque2"];
+  // Called from each of the 4 fields that can put a row "in mantenimiento"
+  // (the tractor's own status, plus each piece of towed equipment), right
+  // when one of them changes. If the row as a WHOLE just transitioned from
+  // "nothing in mantenimiento" to "something in mantenimiento" — not just
+  // one more part joining an already-active repair — start a fresh cycle:
+  // today's fecha de reporte (so it sorts to the top), stage reset to
+  // "Reporte", and the old solicitud/entrega dates cleared so they don't
+  // carry over from whatever repair this unit went through last time.
+  function handleMantenimientoTransition(tr, fieldName, oldValue, newValue) {
+    if (oldValue === newValue) return;
+    var wasInMant = false, isInMant = false;
+    MANT_TRIGGER_FIELDS.forEach(function (f) {
+      var el = tr.querySelector('[data-field="' + f + '"]');
+      var currentVal = el ? el.value : "";
+      var valBefore = f === fieldName ? oldValue : currentVal;
+      var valAfter = f === fieldName ? newValue : currentVal;
+      if (valBefore === "Mantenimiento") wasInMant = true;
+      if (valAfter === "Mantenimiento") isInMant = true;
+    });
+    if (wasInMant || !isInMant) return;
+    var today = new Date().toISOString().slice(0, 10);
+    var fr = tr.querySelector('input[data-field="mantFechaReporte"]');
+    var et = tr.querySelector('input[data-field="mantEtapa"]');
+    var fs = tr.querySelector('input[data-field="mantFechaSolicitud"]');
+    var fe = tr.querySelector('input[data-field="mantFechaEntrega"]');
+    if (fr) fr.value = today;
+    if (et) et.value = MANT_ETAPAS[0];
+    if (fs) fs.value = "";
+    if (fe) fe.value = "";
+  }
 
   var DEFAULT_TOTAL_UNIDADES = 0;
   var lastCapture = null;
@@ -1488,6 +1559,17 @@
           statusOptions = data.statusOptions;
           refreshAllStatusSelects();
         }
+      }
+      // One-time migration: "Disponible" (used when a unit's repair pipeline
+      // reaches "Liberada") didn't exist in the catalog before — add it to
+      // whatever's already synced instead of only to DEFAULT_STATUS_OPTIONS,
+      // which brand-new deployments start from but an existing remote row
+      // never re-reads.
+      if (!statusOptions.some(function (o) { return o.label === "Disponible"; })) {
+        var disponiblePalette = nextAvailableStatusColor("Disponible");
+        statusOptions = statusOptions.concat([{ label: "Disponible", color: disponiblePalette.color, bg: disponiblePalette.bg }]);
+        refreshAllStatusSelects();
+        neededMigrationWrite = true;
       }
       if (Array.isArray(data.cargaEvents)) {
         cargaEvents = data.cargaEvents;
@@ -1596,7 +1678,8 @@
           // write.
           var activeMantCard = document.activeElement ? document.activeElement.closest(".mant-card") : null;
           var rowMantActive = (document.activeElement && tr.contains(document.activeElement)) ||
-            (activeMantCard && activeMantCard.dataset.rowId === rid);
+            (activeMantCard && activeMantCard.dataset.rowId === rid) ||
+            Date.now() < Number(tr.dataset.mantGuardUntil || 0);
 
           var tdUnidad = tr.querySelector("td.unidad .unidad-text");
           var inpOperador = tr.querySelector('input[data-field="operador"]');
@@ -1623,6 +1706,7 @@
           var inpMantEtapa = tr.querySelector('input[data-field="mantEtapa"]');
           var inpMantFechaSolicitud = tr.querySelector('input[data-field="mantFechaSolicitud"]');
           var inpMantFechaEntrega = tr.querySelector('input[data-field="mantFechaEntrega"]');
+          var inpMantLugar = tr.querySelector('input[data-field="mantLugar"]');
           if (tdUnidad.textContent !== r.unidad) tdUnidad.textContent = r.unidad;
           if (document.activeElement !== inpOperador && inpOperador.value !== (r.operador || "")) {
             inpOperador.value = r.operador || "";
@@ -1705,6 +1789,9 @@
           }
           if (!rowMantActive && inpMantFechaEntrega.value !== (r.mantFechaEntrega || "")) {
             inpMantFechaEntrega.value = r.mantFechaEntrega || "";
+          }
+          if (!rowMantActive && inpMantLugar.value !== (r.mantLugar || "Interno")) {
+            inpMantLugar.value = r.mantLugar || "Interno";
           }
           updateAvailabilityFromStatus(tr, sel.value);
         });
@@ -1798,6 +1885,7 @@
         mantEtapa: tr.querySelector('input[data-field="mantEtapa"]').value,
         mantFechaSolicitud: tr.querySelector('input[data-field="mantFechaSolicitud"]').value,
         mantFechaEntrega: tr.querySelector('input[data-field="mantFechaEntrega"]').value,
+        mantLugar: tr.querySelector('input[data-field="mantLugar"]').value,
         enRuta: isEnRuta(tr)
       };
     });
@@ -1863,19 +1951,12 @@
     updateFiltroEstatusButtonLabel();
   }
 
-  function addStatusOption(label) {
-    label = label.trim();
-    if (!label) return;
-    var exists = statusOptions.some(function (o) { return o.label.toLowerCase() === label.toLowerCase(); });
-    if (exists) {
-      window.alert("Ese estatus ya existe.");
-      return;
-    }
-    // Start at the label's deterministic hash bucket, then walk forward to the
-    // next color not already in use by an existing status — so two unrelated
-    // labels landing on the same bucket (bound to happen sometimes once there
-    // are several custom statuses) don't actually end up looking identical,
-    // as long as the palette still has a free color left.
+  // Start at the label's deterministic hash bucket, then walk forward to the
+  // next color not already in use by an existing status — so two unrelated
+  // labels landing on the same bucket (bound to happen sometimes once there
+  // are several custom statuses) don't actually end up looking identical,
+  // as long as the palette still has a free color left.
+  function nextAvailableStatusColor(label) {
     var usedColors = {};
     statusOptions.forEach(function (o) { usedColors[o.color] = true; });
     var startIdx = hashStringToIndex(label.toLowerCase(), EXTRA_STATUS_PALETTE.length);
@@ -1887,6 +1968,18 @@
         break;
       }
     }
+    return palette;
+  }
+
+  function addStatusOption(label) {
+    label = label.trim();
+    if (!label) return;
+    var exists = statusOptions.some(function (o) { return o.label.toLowerCase() === label.toLowerCase(); });
+    if (exists) {
+      window.alert("Ese estatus ya existe.");
+      return;
+    }
+    var palette = nextAvailableStatusColor(label);
     statusOptions = statusOptions.concat([{ label: label, color: palette.color, bg: palette.bg }]);
     refreshAllStatusSelects();
     writeFullState();
@@ -2280,7 +2373,11 @@
   // "asc" = fechas más antiguas primero (cola de atención por antigüedad);
   // "desc" = más recientes primero. Units with no fecha de reporte yet are
   // always pushed to the end, in either order — there's nothing to sort.
-  var mantSortOrder = "asc";
+  // Defaults to "desc": a unit that just entered mantenimiento gets today's
+  // fecha de reporte automatically (see handleMantenimientoTransition), so
+  // "most recent first" is what actually puts new arrivals at the top.
+  var mantSortOrder = "desc";
+  var activeMantenimientoLugarFilter = ""; // "" = todos, "Interno", "Externo"
 
   function renderMantenimientoTab(force) {
     var body = document.getElementById("mantenimientoBody");
@@ -2290,7 +2387,7 @@
     if (!force && document.activeElement && body.contains(document.activeElement)) return;
     body.innerHTML = "";
 
-    var allMantRows = collectRows().filter(function (r) { return r.status === "Mantenimiento"; });
+    var allMantRows = collectRows().filter(rowNeedsMantenimiento);
 
     // Summary chips always reflect every sucursal with units in
     // mantenimiento, regardless of the filter below — it's the "where do I
@@ -2318,6 +2415,9 @@
     if (activeMantenimientoSucursalFilter.length) {
       rows = rows.filter(function (r) { return activeMantenimientoSucursalFilter.indexOf(sucursalGroupOf(r.sucursal)) !== -1; });
     }
+    if (activeMantenimientoLugarFilter) {
+      rows = rows.filter(function (r) { return (r.mantLugar || "Interno") === activeMantenimientoLugarFilter; });
+    }
     rows.sort(function (a, b) {
       if (!a.mantFechaReporte && !b.mantFechaReporte) return a.unidad.localeCompare(b.unidad, "es", { numeric: true, sensitivity: "base" });
       if (!a.mantFechaReporte) return 1;
@@ -2332,8 +2432,11 @@
     if (!rows.length) {
       var empty = document.createElement("div");
       empty.className = "clientes-empty";
-      empty.textContent = activeMantenimientoSucursalFilter.length
-        ? "No hay unidades en mantenimiento en " + activeMantenimientoSucursalFilter.join(", ") + "."
+      var emptyBits = [];
+      if (activeMantenimientoSucursalFilter.length) emptyBits.push(activeMantenimientoSucursalFilter.join(", "));
+      if (activeMantenimientoLugarFilter) emptyBits.push("mantenimiento " + activeMantenimientoLugarFilter.toLowerCase());
+      empty.textContent = emptyBits.length
+        ? "No hay unidades en " + emptyBits.join(" · ") + "."
         : "No hay unidades en mantenimiento en este momento.";
       body.appendChild(empty);
       return;
@@ -2350,6 +2453,18 @@
     renderMantenimientoTab(true);
   });
 
+  // --- filtro Interno / Externo: a simple 3-way toggle (todos/interno/
+  // externo), reusing the Disponibilidad tab's toggle styling. ---
+  Array.prototype.forEach.call(document.querySelectorAll("#mantFiltroLugarToggle .disp-toggle-btn"), function (btn) {
+    btn.addEventListener("click", function () {
+      activeMantenimientoLugarFilter = btn.dataset.lugar;
+      Array.prototype.forEach.call(document.querySelectorAll("#mantFiltroLugarToggle .disp-toggle-btn"), function (b) {
+        b.classList.toggle("active", b === btn);
+      });
+      renderMantenimientoTab(true);
+    });
+  });
+
   // Writes one field back into the unit's real row in Estatus de Flota
   // (where it's actually synced from) and re-renders this tab so the
   // progress bar / days-out / current-stage readout reflect the change.
@@ -2359,6 +2474,13 @@
     var el = tr.querySelector('[data-field="' + fieldName + '"]');
     if (!el) return;
     el.value = value;
+    // The render call right below tears down and rebuilds every card,
+    // including whichever button/input the user just clicked — so by the
+    // time the write actually lands (scheduleWrite's 500ms debounce), focus
+    // is nowhere inside this row's card anymore and the activeElement-based
+    // guard above can't tell a poll not to clobber it. Stamp a short guard
+    // instead, same pattern as setEnRutaLocal's enRutaGuardUntil.
+    tr.dataset.mantGuardUntil = String(Date.now() + 1500);
     scheduleWrite();
     renderMantenimientoTab(true);
   }
@@ -2395,12 +2517,40 @@
       placasEl.textContent = "Placas: " + r.placasTractor;
       headerLeft.appendChild(placasEl);
     }
+    var mantPartes = mantenimientoPartesOf(r);
+    if (mantPartes.length) {
+      var partesEl = document.createElement("div");
+      partesEl.className = "mant-partes";
+      partesEl.textContent = "En mantenimiento: " + mantPartes.join(", ");
+      headerLeft.appendChild(partesEl);
+    }
     header.appendChild(headerLeft);
     var statusPill = document.createElement("span");
     statusPill.className = "mant-pill mant-pill-orange";
     statusPill.textContent = "En mantenimiento";
     header.appendChild(statusPill);
     card.appendChild(header);
+
+    // --- interno / externo ---
+    var lugarRow = document.createElement("div");
+    lugarRow.className = "mant-lugar-row";
+    var lugarLabel = document.createElement("span");
+    lugarLabel.className = "mant-lugar-label";
+    lugarLabel.textContent = "Mantenimiento:";
+    lugarRow.appendChild(lugarLabel);
+    var currentLugar = r.mantLugar || "Interno";
+    ["Interno", "Externo"].forEach(function (opt) {
+      var lugarBtn = document.createElement("button");
+      lugarBtn.type = "button";
+      lugarBtn.className = "mant-lugar-btn" + (currentLugar === opt ? " active" : "");
+      lugarBtn.textContent = opt;
+      lugarBtn.addEventListener("click", function () {
+        if (currentLugar === opt) return;
+        setMantField(r.id, "mantLugar", opt);
+      });
+      lugarRow.appendChild(lugarBtn);
+    });
+    card.appendChild(lugarRow);
 
     // --- fecha de reporte + días fuera de operación ---
     var sub = document.createElement("div");
@@ -2452,7 +2602,32 @@
       stateEl.textContent = state === "done" ? "Listo" : state === "current" ? "En proceso" : "Pendiente";
       col.appendChild(nameEl);
       col.appendChild(stateEl);
-      col.addEventListener("click", function () { setMantField(r.id, "mantEtapa", etapa); });
+      col.addEventListener("click", function () {
+        setMantField(r.id, "mantEtapa", etapa);
+        // Reaching the last stage closes out the repair: nothing about this
+        // unit should still read "Mantenimiento" — the tractor's own status
+        // (back to "Disponible") and any equipment that was flagged (back to
+        // "Operativo"). This also drops it off the Mantenimiento tab on its
+        // own, since that list is just "anything still Mantenimiento".
+        if (etapa === MANT_ETAPAS[MANT_ETAPAS.length - 1]) {
+          var liberadaTr = tbody.querySelector('tr[data-row-id="' + r.id + '"]');
+          if (liberadaTr) {
+            var liberadaSel = liberadaTr.querySelector('select[data-field="status"]');
+            if (liberadaSel && liberadaSel.value === "Mantenimiento") {
+              liberadaSel.value = "Disponible";
+              liberadaSel.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+            ["estatusTanque1", "estatusDolly", "estatusTanque2"].forEach(function (f) {
+              var equipoSel = liberadaTr.querySelector('select[data-field="' + f + '"]');
+              if (equipoSel && equipoSel.value === "Mantenimiento") {
+                equipoSel.value = "Operativo";
+                equipoSel.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            });
+            renderMantenimientoTab(true);
+          }
+        }
+      });
       stagesRow.appendChild(col);
     });
     card.appendChild(stagesRow);
@@ -3387,10 +3562,15 @@
           estatusSelect.appendChild(o);
         });
         estatusSelect.value = rowData[estatusField] || "Operativo";
+        estatusSelect.dataset.prevStatus = estatusSelect.value;
         applyEquipoEstatusColors(estatusSelect);
         estatusSelect.addEventListener("change", function () {
           applyEquipoEstatusColors(estatusSelect);
+          handleMantenimientoTransition(tr, estatusField, estatusSelect.dataset.prevStatus, estatusSelect.value);
+          estatusSelect.dataset.prevStatus = estatusSelect.value;
           scheduleWrite();
+          if (!panelMantenimiento.hidden) renderMantenimientoTab();
+          if (!panelDisponibilidad.hidden) renderDisponibilidadTab();
         });
         rowWrap.appendChild(estatusSelect);
       }
@@ -3484,6 +3664,7 @@
         logCargaEvent(unidadText.textContent);
         renderCargasHoyDashboard();
       }
+      handleMantenimientoTransition(tr, "status", sel.dataset.prevStatus, sel.value);
       sel.dataset.prevStatus = sel.value;
       scheduleWrite();
       if (!panelMantenimiento.hidden) renderMantenimientoTab();
@@ -3605,7 +3786,8 @@
       ["mantFechaReporte", rowData.mantFechaReporte],
       ["mantEtapa", rowData.mantEtapa || MANT_ETAPAS[0]],
       ["mantFechaSolicitud", rowData.mantFechaSolicitud],
-      ["mantFechaEntrega", rowData.mantFechaEntrega]
+      ["mantFechaEntrega", rowData.mantFechaEntrega],
+      ["mantLugar", rowData.mantLugar || "Interno"]
     ].forEach(function (pair) {
       var td = document.createElement("td");
       td.className = "col-hideable";

@@ -1516,18 +1516,35 @@
   // chasing every individual field that a stale client could clobber,
   // detect staleness directly against the deployed page itself — which an
   // old client can't touch — and refuse to write at all once detected.
-  var BUILD_ID = "2026-11-09T18:30Z-stale-build-guard";
+  var BUILD_ID = "2026-11-09T22:30Z-cachebust-fix";
   var isStaleBuild = false;
+  var staleMismatchStreak = 0;
   function checkForNewerBuild() {
     // No deploy concept for a locally-opened file — and fetch() can't load
     // file:// URLs anyway, which Chromium logs as a console error even
     // though the rejection itself is caught below.
     if (location.protocol === "file:") return;
-    fetch(location.href, { cache: "no-store" }).then(function (res) { return res.text(); }).then(function (html) {
+    // {cache:"no-store"} only bypasses THIS BROWSER's own cache — GitHub
+    // Pages' CDN can still answer from its own cached copy of the exact
+    // same URL for a few minutes after a deploy, which made this compare
+    // the live page against a stale CDN copy of ITSELF and false-flag a
+    // perfectly current client. A cache-busting query string makes every
+    // check a URL the CDN has never served, forcing a real fetch from
+    // origin. Two consecutive mismatches (not one) are required before
+    // actually flagging stale, as a second guard against any remaining
+    // transient blip — a real deploy stays mismatched on the next check
+    // too, a fluke doesn't.
+    var bustedUrl = location.pathname + location.search + (location.search ? "&" : "?") + "_cb=" + Date.now();
+    fetch(bustedUrl, { cache: "no-store" }).then(function (res) { return res.text(); }).then(function (html) {
       var m = html.match(/var BUILD_ID = "([^"]+)"/);
-      if (m && m[1] !== BUILD_ID && !isStaleBuild) {
-        isStaleBuild = true;
-        showStaleBuildBanner();
+      if (m && m[1] !== BUILD_ID) {
+        staleMismatchStreak++;
+        if (staleMismatchStreak >= 2 && !isStaleBuild) {
+          isStaleBuild = true;
+          showStaleBuildBanner();
+        }
+      } else {
+        staleMismatchStreak = 0;
       }
     }).catch(function () {});
   }

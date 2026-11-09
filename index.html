@@ -5907,13 +5907,16 @@
     label.textContent = "Generando…";
 
     // Capture only what's currently visible in the live table: the active
-    // page (Tractos / Tanques / Otros) plus whichever estatus/sucursal/unidad
-    // filters are applied — never the whole fleet if the user has filtered it down.
+    // page (Tractos / Tanques / Otros) plus whichever estatus/sucursal/
+    // unidad/en-ruta filters are applied — never the whole fleet if the
+    // user has filtered it down. Keep this in sync with
+    // applyFlotaPageVisibility()'s own filter conditions.
     var rows = collectRows().filter(function (r) {
       if (tipoSubgroupOf(r.tipoUnidad) !== activeFlotaPage) return false;
       if (activeFlotaSucursalFilter && sucursalGroupOf(r.sucursal) !== activeFlotaSucursalFilter) return false;
       if (activeFlotaStatusFilter && r.status !== activeFlotaStatusFilter) return false;
       if (activeFlotaUnidadFilter && r.unidad !== activeFlotaUnidadFilter) return false;
+      if (activeFlotaEnRutaFilter && !r.enRuta) return false;
       return true;
     });
     var now = new Date();

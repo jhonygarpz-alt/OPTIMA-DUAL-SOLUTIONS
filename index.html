@@ -24,16 +24,6 @@
     margin: 0 auto;
     padding: 20px 20px 40px;
   }
-  .stale-build-banner {
-    position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap;
-    background: #B91C1C; color: #fff; padding: 10px 20px; font-size: 14px; font-weight: 600;
-    text-align: center;
-  }
-  .stale-build-banner button {
-    background: #fff; color: #B91C1C; border: none; border-radius: 6px; padding: 6px 14px;
-    font-weight: 700; cursor: pointer; flex: none;
-  }
   .card {
     background: #fff;
     border-radius: 16px;
@@ -744,11 +734,6 @@
 </style>
 </head>
 <body>
-
-<div class="stale-build-banner" id="staleBuildBanner" hidden>
-  <span>Hay una versión más reciente de esta página. Para seguir guardando cambios, recárgala ahora.</span>
-  <button type="button" id="staleBuildReload">Recargar ahora</button>
-</div>
 
 <div class="wrap">
   <div class="card">
@@ -1508,50 +1493,6 @@
   var syncEnabled = false;
   var writeTimer = null;
 
-  // A tab left open across a deploy keeps running the OLD code forever —
-  // static pages don't auto-refresh — and this app PATCHes the entire data
-  // column on every write, so that stale tab's next edit silently rewrites
-  // everything else back to whatever it last knew (this is exactly what
-  // caused two real data-loss incidents: Nov 6 and Nov 9). Instead of
-  // chasing every individual field that a stale client could clobber,
-  // detect staleness directly against the deployed page itself — which an
-  // old client can't touch — and refuse to write at all once detected.
-  var BUILD_ID = "2026-11-09T22:30Z-cachebust-fix";
-  var isStaleBuild = false;
-  var staleMismatchStreak = 0;
-  function checkForNewerBuild() {
-    // No deploy concept for a locally-opened file — and fetch() can't load
-    // file:// URLs anyway, which Chromium logs as a console error even
-    // though the rejection itself is caught below.
-    if (location.protocol === "file:") return;
-    // {cache:"no-store"} only bypasses THIS BROWSER's own cache — GitHub
-    // Pages' CDN can still answer from its own cached copy of the exact
-    // same URL for a few minutes after a deploy, which made this compare
-    // the live page against a stale CDN copy of ITSELF and false-flag a
-    // perfectly current client. A cache-busting query string makes every
-    // check a URL the CDN has never served, forcing a real fetch from
-    // origin. Two consecutive mismatches (not one) are required before
-    // actually flagging stale, as a second guard against any remaining
-    // transient blip — a real deploy stays mismatched on the next check
-    // too, a fluke doesn't.
-    var bustedUrl = location.pathname + location.search + (location.search ? "&" : "?") + "_cb=" + Date.now();
-    fetch(bustedUrl, { cache: "no-store" }).then(function (res) { return res.text(); }).then(function (html) {
-      var m = html.match(/var BUILD_ID = "([^"]+)"/);
-      if (m && m[1] !== BUILD_ID) {
-        staleMismatchStreak++;
-        if (staleMismatchStreak >= 2 && !isStaleBuild) {
-          isStaleBuild = true;
-          showStaleBuildBanner();
-        }
-      } else {
-        staleMismatchStreak = 0;
-      }
-    }).catch(function () {});
-  }
-  function showStaleBuildBanner() {
-    var banner = document.getElementById("staleBuildBanner");
-    if (banner) banner.hidden = false;
-  }
   var applyingRemote = false;
   var pollFailures = 0;
 
@@ -1608,8 +1549,6 @@
   function initFirebaseSync() {
     pollOnce();
     setInterval(pollOnce, POLL_INTERVAL_MS);
-    checkForNewerBuild();
-    setInterval(checkForNewerBuild, 60000);
   }
 
   function applyRemoteState(data) {
@@ -1954,7 +1893,6 @@
   }
 
   function writeFullState() {
-    if (isStaleBuild) return;
     pruneCargaEvents();
     var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, operadoresFlotaConocidos: operadoresFlotaConocidos, cargaEvents: cargaEvents, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
@@ -1970,7 +1908,7 @@
   }
 
   function scheduleWrite() {
-    if (applyingRemote || isStaleBuild) return;
+    if (applyingRemote) return;
     clearTimeout(writeTimer);
     writeTimer = setTimeout(writeFullState, 500);
   }
@@ -6194,10 +6132,6 @@
       btn.disabled = false;
       label.textContent = "Capturar y compartir";
     });
-  });
-
-  document.getElementById("staleBuildReload").addEventListener("click", function () {
-    location.reload();
   });
 
   initFirebaseSync();

@@ -1496,6 +1496,46 @@
   var applyingRemote = false;
   var pollFailures = 0;
 
+  // The one thing that actually caused every data-loss incident so far:
+  // this app PATCHes the ENTIRE data column, unconditionally, on every
+  // write. Whichever client's turn it is to write last simply wins,
+  // whatever it knew or didn't know — no code-version check can close
+  // that, because the race is about DATA timing, not which JS is running.
+  // lastKnownUpdatedAt is this client's last-seen revision of the row,
+  // from the server's own `updated_at` column (never a client-generated
+  // guess, so it round-trips exactly through PostgREST's own formatting).
+  // Every write is conditioned on the row still being at that revision —
+  // if someone else wrote first, the condition matches 0 rows, nothing is
+  // overwritten, and the client re-syncs and retries instead.
+  var lastKnownUpdatedAt = null;
+  // The last full `data` object this client knows the server actually
+  // has — kept in sync after every successful read AND write. On a write
+  // conflict, this is the baseline used to tell "a field I just changed
+  // locally" apart from "a field I never touched" when folding the fresh
+  // winning write back in — see mergeLocalRowEditsOntoFresh below.
+  var lastKnownData = null;
+
+  function mergeLocalRowEditsOntoFresh(freshData, myData, baselineData) {
+    if (!myData || !Array.isArray(myData.rows) || !freshData || !Array.isArray(freshData.rows)) return freshData;
+    var baselineRowsById = {};
+    (baselineData && Array.isArray(baselineData.rows) ? baselineData.rows : []).forEach(function (r) { baselineRowsById[r.id] = r; });
+    var myRowsById = {};
+    myData.rows.forEach(function (r) { myRowsById[r.id] = r; });
+    var mergedRows = freshData.rows.map(function (freshRow) {
+      var mine = myRowsById[freshRow.id];
+      if (!mine) return freshRow;
+      var baseline = baselineRowsById[freshRow.id] || {};
+      var merged = Object.assign({}, freshRow);
+      Object.keys(mine).forEach(function (key) {
+        if (JSON.stringify(mine[key]) !== JSON.stringify(baseline[key])) merged[key] = mine[key];
+      });
+      return merged;
+    });
+    var result = Object.assign({}, freshData);
+    result.rows = mergedRows;
+    return result;
+  }
+
   function setSyncStatus(state, text) {
     var el = document.getElementById("syncStatus");
     var txt = document.getElementById("syncStatusText");
@@ -1504,26 +1544,61 @@
   }
 
   function supabaseGet() {
-    return fetch(SUPABASE_ROW_URL + "&select=data", { method: "GET", cache: "no-store", headers: SUPABASE_HEADERS }).then(function (res) {
+    return fetch(SUPABASE_ROW_URL + "&select=data,updated_at", { method: "GET", cache: "no-store", headers: SUPABASE_HEADERS }).then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) { throw new Error("GET " + res.status + ": " + t); });
       }
       return res.json();
     }).then(function (rows) {
       if (!rows || !rows.length) return null;
-      return rows[0].data || {};
+      lastKnownUpdatedAt = rows[0].updated_at || null;
+      lastKnownData = rows[0].data || {};
+      return lastKnownData;
     });
   }
 
   function supabasePatch(data) {
-    var headers = Object.assign({ "Content-Type": "application/json", "Prefer": "return=minimal" }, SUPABASE_HEADERS);
-    return fetch(SUPABASE_ROW_URL, {
+    var headers = Object.assign({ "Content-Type": "application/json", "Prefer": "return=representation" }, SUPABASE_HEADERS);
+    var url = SUPABASE_ROW_URL;
+    if (lastKnownUpdatedAt) {
+      url += "&updated_at=eq." + encodeURIComponent(lastKnownUpdatedAt);
+    }
+    return fetch(url, {
       method: "PATCH",
       headers: headers,
       body: JSON.stringify({ data: data, updated_at: new Date().toISOString() })
     }).then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) { throw new Error("PATCH " + res.status + ": " + t); });
+      }
+      return res.json();
+    }).then(function (rows) {
+      if (lastKnownUpdatedAt && (!rows || !rows.length)) {
+        // Conflict: the row moved on since we last read it — some other
+        // device wrote first. Re-sync with what's actually there now and
+        // retry, instead of silently discarding that other write — but a
+        // plain applyRemoteState(freshData) would itself discard THIS
+        // client's own edit on any field that lost focus in the last
+        // instant (a real gap: a user who edits a field then clicks away
+        // right as a conflict lands would lose that edit). So fold our
+        // own pending edits back on top of the fresh winner first — any
+        // row/field that differs from what we knew BEFORE this attempt is
+        // something we changed locally and still want to keep; anything
+        // unchanged just takes the fresh value normally.
+        var baselineBeforeThisAttempt = lastKnownData;
+        return supabaseGet().then(function (freshData) {
+          if (freshData && Object.keys(freshData).length) {
+            applyRemoteState(mergeLocalRowEditsOntoFresh(freshData, data, baselineBeforeThisAttempt));
+          }
+          scheduleWrite();
+          var conflictErr = new Error("write conflict with a newer revision; re-synced and retrying");
+          conflictErr.isConflictRetry = true;
+          throw conflictErr;
+        });
+      }
+      if (rows && rows.length) {
+        lastKnownUpdatedAt = rows[0].updated_at;
+        lastKnownData = data;
       }
     });
   }
@@ -1897,6 +1972,7 @@
     var body = { rows: collectRows(), statusOptions: statusOptions, clientes: clientesConocidos, clientesOperadores: clientesOperadores, clienteModulos: clienteModulos, moduloRows: moduloRows, sucursalesConocidas: sucursalesConocidas, tipoUnidadConocidos: tipoUnidadConocidos, operadoresFlotaConocidos: operadoresFlotaConocidos, cargaEvents: cargaEvents, updatedAt: Date.now() };
     if (lastCapture) body.lastCapture = lastCapture.getTime();
     supabasePatch(body).catch(function (err) {
+      if (err && err.isConflictRetry) return; // expected, self-healing — not a real failure
       console.error("Supabase write error (writeFullState):", err);
       setSyncStatus("offline", "Error al guardar");
     });

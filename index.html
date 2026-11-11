@@ -639,6 +639,85 @@
     .btn-reset, .btn-capture { width: 100%; }
   }
 
+  /* --- Mobile layout for Estatus de Flota: the main table becomes a
+     stacked list of cards instead of a 9-column table. Scoped entirely to
+     this breakpoint — nothing here changes how the desktop table looks or
+     behaves above it; same DOM, same JS, just reflowed with CSS. --- */
+  @media (max-width: 900px) {
+    .table-scroll { overflow-x: visible; }
+    table { display: block; width: 100%; min-width: 0; }
+    thead { display: none; }
+    tbody { display: block; }
+
+    tr.sucursal-sep { display: block; padding: 10px 14px; margin-bottom: 10px; border-radius: 10px; }
+    tbody tr.sucursal-sep .sucursal-sep-inner { flex-wrap: wrap; }
+    tbody tr.sucursal-sep .btn-group-estatus { margin-left: 0; flex: 1 1 100%; text-align: center; }
+
+    tr.sucursal-row {
+      display: flex; flex-direction: column; position: relative;
+      width: 100%; border: 1px solid rgba(0,0,0,.12); border-radius: 14px;
+      margin: 0 0 12px; padding: 16px 16px 12px;
+    }
+    tr.sucursal-row.decade-sep { border-top-color: rgba(0,0,0,.12); }
+    tr.sucursal-row td { display: block; width: 100%; padding: 0; border: none; }
+    /* these stay hidden everywhere (edited only from the Mantenimiento
+       tab) — .col-hideable alone loses to the more specific rule above */
+    tr.sucursal-row td.col-hideable { display: none !important; }
+
+    td.w-check { position: absolute; top: 14px; right: 14px; width: auto; order: -1; }
+    td.unidad { order: 0; padding-right: 34px; margin-bottom: 12px; }
+    .unidad-text { font-size: 16px; }
+
+    td.status-cell { order: 1; }
+    td.operador-cell { order: 2; }
+    td.contenedor-cell { order: 3; }
+    td.origen-cell { order: 4; }
+    td.destino-cell { order: 5; }
+    td.cliente-cell { order: 6; }
+    td.observaciones-cell { order: 7; }
+
+    td.status-cell, td.operador-cell, td.contenedor-cell, td.origen-cell,
+    td.destino-cell, td.cliente-cell, td.observaciones-cell { margin-bottom: 12px; }
+    td.observaciones-cell { margin-bottom: 0; }
+
+    td.status-cell::before { content: "Estatus y ubicación"; }
+    td.operador-cell::before { content: "Operador"; }
+    td.contenedor-cell::before { content: "Tanque / Dolly"; }
+    td.origen-cell::before { content: "Origen"; }
+    td.destino-cell::before { content: "Destino"; }
+    td.cliente-cell::before { content: "Cliente"; }
+    td.observaciones-cell::before { content: "Observaciones"; }
+    td.status-cell::before, td.operador-cell::before, td.contenedor-cell::before,
+    td.origen-cell::before, td.destino-cell::before, td.cliente-cell::before,
+    td.observaciones-cell::before {
+      display: block; font-size: 11px; font-weight: 700; color: #6B7280;
+      text-transform: uppercase; letter-spacing: .04em; margin-bottom: 5px;
+    }
+
+    /* bigger touch targets everywhere in a card, and >=16px font so iOS
+       Safari doesn't auto-zoom the page when a field gets focus */
+    tr.sucursal-row input, tr.sucursal-row select { font-size: 16px !important; min-height: 42px; }
+    .placas-field { font-size: 13px !important; flex: 0 0 76px !important; }
+    .unidad-bottom, .unidad-top { flex-wrap: wrap; }
+    /* the tanque/dolly row packs 3-4 elements (input, "+", placas, OP/MTO)
+       — too many to share one line on a phone. Force the text input onto
+       its own line; the smaller fixed-width controls wrap together below. */
+    .contenedor-main-row { flex-wrap: wrap; row-gap: 6px; }
+    .contenedor-main-row input:not(.placas-field) { flex: 1 1 100%; }
+    .btn-asignar-remolque { width: 38px; height: 38px; flex: none; }
+    .status-wrap { gap: 8px; }
+    .btn-en-ruta { align-self: flex-start; padding: 10px 16px; min-height: 42px; }
+    .unidad-actions { gap: 8px; }
+    .btn-edit-row, .btn-del-row { width: 34px; height: 34px; }
+  }
+
+  :root[data-theme="dark"] tr.sucursal-row { border-color: rgba(255,255,255,.15); }
+  :root[data-theme="dark"] tr.sucursal-row.decade-sep { border-top-color: rgba(255,255,255,.25); }
+  :root[data-theme="dark"] td.status-cell::before, :root[data-theme="dark"] td.operador-cell::before,
+  :root[data-theme="dark"] td.contenedor-cell::before, :root[data-theme="dark"] td.origen-cell::before,
+  :root[data-theme="dark"] td.destino-cell::before, :root[data-theme="dark"] td.cliente-cell::before,
+  :root[data-theme="dark"] td.observaciones-cell::before { color: #94A3B8; }
+
   /* --- dark mode: toggled via data-theme on <html>, remembered per-device --- */
   :root[data-theme="dark"] { --bg: #0F172A; }
   :root[data-theme="dark"] body { color: #E5E7EB; }
@@ -3547,6 +3626,7 @@
     tr.appendChild(tdUnidad);
 
     var tdOperador = document.createElement("td");
+    tdOperador.className = "operador-cell";
     var operadorWrap = document.createElement("div");
     operadorWrap.className = "contenedor-main-row";
     var inpOperador = document.createElement("input");
@@ -3579,6 +3659,7 @@
     tr.appendChild(tdOperador);
 
     var tdContenedor = document.createElement("td");
+    tdContenedor.className = "contenedor-cell";
     var contenedorWrap = document.createElement("div");
     contenedorWrap.className = "contenedor-wrap";
 
@@ -3685,6 +3766,7 @@
     tr.appendChild(tdContenedor);
 
     var tdOrigen = document.createElement("td");
+    tdOrigen.className = "origen-cell";
     var inpOrigen = document.createElement("input");
     inpOrigen.type = "text";
     inpOrigen.placeholder = "Ej. Monterrey, NL";
@@ -3695,6 +3777,7 @@
     tr.appendChild(tdOrigen);
 
     var tdDestino = document.createElement("td");
+    tdDestino.className = "destino-cell";
     var inpDestino = document.createElement("input");
     inpDestino.type = "text";
     inpDestino.placeholder = "Ej. Ciudad de México";
@@ -3705,6 +3788,7 @@
     tr.appendChild(tdDestino);
 
     var tdStatus = document.createElement("td");
+    tdStatus.className = "status-cell";
     var statusWrap = document.createElement("div");
     statusWrap.className = "status-wrap";
 
@@ -3787,6 +3871,7 @@
     tr.appendChild(tdStatus);
 
     var tdCliente = document.createElement("td");
+    tdCliente.className = "cliente-cell";
     var inpCliente = document.createElement("input");
     inpCliente.type = "text";
     inpCliente.placeholder = "Nombre del cliente";
@@ -3802,6 +3887,7 @@
     tr.appendChild(tdCliente);
 
     var tdObservaciones = document.createElement("td");
+    tdObservaciones.className = "observaciones-cell";
     var inpObservaciones = document.createElement("input");
     inpObservaciones.type = "text";
     inpObservaciones.placeholder = "Observaciones";

@@ -157,6 +157,7 @@
   td.w-check { padding-left: 14px; }
   .row-select, .group-select { width: 16px; height: 16px; cursor: pointer; }
   .col-hideable { display: none; }
+  td.observaciones-cell textarea { height: 54px; }
   tbody tr:nth-child(odd) { background: #F3F8FA; }
   tbody tr:nth-child(even) { background: #fff; }
   tbody td { padding: 8px; border-top: 1px solid #E5EFF3; }
@@ -195,7 +196,7 @@
   :root[data-theme="dark"] .btn-asignar-remolque { background: #052e1f; color: #4ADE80; }
   :root[data-theme="dark"] .btn-asignar-remolque:hover { background: #064e3b; }
 
-  input[type=text], select {
+  input[type=text], select, textarea {
     width: 100%;
     padding: 8px;
     border-radius: 8px;
@@ -203,8 +204,9 @@
     font: inherit;
     color: #1F2937;
   }
-  input[type=text]::placeholder { color: #9CA3AF; }
-  input[type=text]:focus, select:focus {
+  textarea { resize: vertical; min-height: 36px; }
+  input[type=text]::placeholder, textarea::placeholder { color: #9CA3AF; }
+  input[type=text]:focus, select:focus, textarea:focus {
     outline: none;
     border-color: #38BDF8;
     box-shadow: 0 0 0 2px #7DD3FC;
@@ -467,13 +469,13 @@
   .mant-stage-state.pending { color: #9CA3AF; font-weight: 500; }
   .mant-current-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .mant-current-label { font-weight: 700; color: #1F2937; font-size: 14px; }
-  .mant-obs-row { font-size: 13px; color: #374151; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-  .mant-obs-row strong { flex: none; }
-  .mant-obs-row input {
+  .mant-obs-row { font-size: 13px; color: #374151; display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
+  .mant-obs-row strong { flex: none; padding-top: 4px; }
+  .mant-obs-row textarea {
     flex: 1; min-width: 200px; border: none; border-bottom: 1px dashed #D1D5DB; background: transparent;
-    font: inherit; color: inherit; padding: 2px 0;
+    font: inherit; color: inherit; padding: 2px 0; resize: vertical; min-height: 40px;
   }
-  .mant-obs-row input:focus { outline: none; border-bottom-color: var(--brand); }
+  .mant-obs-row textarea:focus { outline: none; border-bottom-color: var(--brand); }
   .mant-footer-grid { display: flex; gap: 24px; flex-wrap: wrap; border-top: 1px solid #F1F5F9; padding-top: 12px; }
   .mant-footer-field { display: flex; flex-direction: column; gap: 3px; }
   .mant-footer-field label { font-size: 12px; color: #6B7280; }
@@ -696,7 +698,10 @@
 
     /* bigger touch targets everywhere in a card, and >=16px font so iOS
        Safari doesn't auto-zoom the page when a field gets focus */
-    tr.sucursal-row input, tr.sucursal-row select { font-size: 16px !important; min-height: 42px; }
+    tr.sucursal-row input, tr.sucursal-row select, tr.sucursal-row textarea { font-size: 16px !important; min-height: 42px; }
+    /* observaciones gets real room to write on a phone instead of a
+       single cramped line */
+    td.observaciones-cell textarea { height: 84px; }
     .placas-field { font-size: 13px !important; flex: 0 0 76px !important; }
     .unidad-bottom, .unidad-top { flex-wrap: wrap; }
     /* the tanque/dolly row packs 3-4 elements (input, "+", placas, OP/MTO)
@@ -732,13 +737,13 @@
   :root[data-theme="dark"] tbody tr:nth-child(even) { background: #1E293B; }
   :root[data-theme="dark"] tbody td { border-top-color: #334155; }
   :root[data-theme="dark"] td.unidad { color: #38BDF8; }
-  :root[data-theme="dark"] input[type=text], :root[data-theme="dark"] select,
+  :root[data-theme="dark"] input[type=text], :root[data-theme="dark"] select, :root[data-theme="dark"] textarea,
   :root[data-theme="dark"] .modal-card input[type=text], :root[data-theme="dark"] .modal-card select,
   :root[data-theme="dark"] .operador-add-row input,
   :root[data-theme="dark"] .modulo-table input, :root[data-theme="dark"] .modulo-table select {
     background: #0F172A; border-color: #334155; color: #E5E7EB;
   }
-  :root[data-theme="dark"] input[type=text]::placeholder { color: #64748B; }
+  :root[data-theme="dark"] input[type=text]::placeholder, :root[data-theme="dark"] textarea::placeholder { color: #64748B; }
   :root[data-theme="dark"] .footer-bar { background: #1E293B; border-color: #334155; }
   :root[data-theme="dark"] .btn-reset { background: #1E293B; border-color: #475569; color: #CBD5E1; }
   :root[data-theme="dark"] .btn-reset:hover { background: #334155; }
@@ -1853,7 +1858,7 @@
           var selTipo = tr.querySelector('select[data-field="tipo"]');
           var sel = tr.querySelector('select[data-field="status"]');
           var inpCliente = tr.querySelector('input[data-field="cliente"]');
-          var inpObservaciones = tr.querySelector('input[data-field="observaciones"]');
+          var inpObservaciones = tr.querySelector('textarea[data-field="observaciones"]');
           var inpSucursal = tr.querySelector('input[data-field="sucursal"]');
           var inpTipoUnidad = tr.querySelector('input[data-field="tipoUnidad"]');
           var inpTiempoEntrega = tr.querySelector('input[data-field="tiempoEntrega"]');
@@ -2032,7 +2037,7 @@
         ubicacion: inpUbic.dataset.geocoding ? (inpUbic.dataset.pendingValue || "") : inpUbic.value,
         status: tr.querySelector('select[data-field="status"]').value,
         cliente: tr.querySelector('input[data-field="cliente"]').value,
-        observaciones: tr.querySelector('input[data-field="observaciones"]').value,
+        observaciones: tr.querySelector('textarea[data-field="observaciones"]').value,
         sucursal: tr.querySelector('input[data-field="sucursal"]').value,
         tipoUnidad: tr.querySelector('input[data-field="tipoUnidad"]').value,
         tiempoEntrega: tr.querySelector('input[data-field="tiempoEntrega"]').value,
@@ -2810,14 +2815,14 @@
     obsRow.className = "mant-obs-row";
     var obsStrong = document.createElement("strong");
     obsStrong.textContent = "Observaciones:";
-    var obsInp = document.createElement("input");
-    obsInp.type = "text";
+    var obsInp = document.createElement("textarea");
+    obsInp.rows = 1;
     obsInp.placeholder = "Notas sobre esta unidad…";
     obsInp.value = r.observaciones || r.tiempoEntrega || "";
     obsInp.addEventListener("input", function () {
       var tr = tbody.querySelector('tr[data-row-id="' + r.id + '"]');
       if (!tr) return;
-      tr.querySelector('input[data-field="observaciones"]').value = obsInp.value;
+      tr.querySelector('textarea[data-field="observaciones"]').value = obsInp.value;
       scheduleWrite();
     });
     obsRow.appendChild(obsStrong);
@@ -3888,8 +3893,8 @@
 
     var tdObservaciones = document.createElement("td");
     tdObservaciones.className = "observaciones-cell";
-    var inpObservaciones = document.createElement("input");
-    inpObservaciones.type = "text";
+    var inpObservaciones = document.createElement("textarea");
+    inpObservaciones.rows = 1;
     inpObservaciones.placeholder = "Observaciones";
     inpObservaciones.dataset.field = "observaciones";
     inpObservaciones.value = rowData.observaciones || "";

@@ -879,6 +879,7 @@
       <div class="toolbar">
         <button class="btn-reset btn-small" id="btnAddUnit" type="button">+ Agregar unidad</button>
         <button class="btn-reset btn-small" id="btnAddStatus" type="button">+ Nuevo estatus</button>
+        <button class="btn-reset btn-small" id="btnAddClienteFlota" type="button">+ Nuevo cliente</button>
         <button class="btn-reset btn-small" id="btnFiltroEstatus" type="button">Filtrar por estatus (todos)</button>
         <button class="btn-reset btn-small" id="btnFiltroSucursal" type="button">Filtrar por sucursal (todas)</button>
         <button class="btn-reset btn-small" id="btnFiltroUnidad" type="button">Filtrar por unidad (todas)</button>
@@ -6056,11 +6057,13 @@
 
   // --- add-client modal ---
   var modalAddCliente = document.getElementById("modalAddCliente");
-  document.getElementById("btnAddClienteTab").addEventListener("click", function () {
+  function openAddClienteModal() {
     document.getElementById("newClienteName").value = "";
     modalAddCliente.hidden = false;
     document.getElementById("newClienteName").focus();
-  });
+  }
+  document.getElementById("btnAddClienteTab").addEventListener("click", openAddClienteModal);
+  document.getElementById("btnAddClienteFlota").addEventListener("click", openAddClienteModal);
   document.getElementById("cancelAddCliente").addEventListener("click", function () {
     modalAddCliente.hidden = true;
   });

@@ -882,6 +882,7 @@
         <button class="btn-reset btn-small" id="btnFiltroEstatus" type="button">Filtrar por estatus (todos)</button>
         <button class="btn-reset btn-small" id="btnFiltroSucursal" type="button">Filtrar por sucursal (todas)</button>
         <button class="btn-reset btn-small" id="btnFiltroUnidad" type="button">Filtrar por unidad (todas)</button>
+        <button class="btn-reset btn-small" id="btnFiltroCliente" type="button">Filtrar por cliente (todos)</button>
         <button class="btn-reset btn-small" id="btnFiltroEnRuta" type="button">En ruta</button>
         <div class="flota-page-switcher">
           <button class="flota-page-btn" type="button" data-page="TRACTOS">Página 1 · Tractos</button>
@@ -1172,6 +1173,18 @@
     <div class="status-list" id="filtroUnidadOptionsList"></div>
     <div class="modal-actions">
       <button type="button" class="btn-reset" id="cancelFiltroUnidad">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalFiltroCliente" hidden>
+  <div class="modal-card">
+    <h3>Filtrar por cliente</h3>
+    <p class="preview-hint">Busca y elige un cliente para mostrar solo sus unidades, o "Todos" para quitar el filtro.</p>
+    <input type="text" id="filtroClienteSearch" placeholder="Buscar cliente…" style="margin-bottom:8px;" />
+    <div class="status-list" id="filtroClienteOptionsList"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-reset" id="cancelFiltroCliente">Cerrar</button>
     </div>
   </div>
 </div>
@@ -3986,6 +3999,7 @@
   var activeFlotaStatusFilter = "";
   var activeFlotaSucursalFilter = "";
   var activeFlotaUnidadFilter = "";
+  var activeFlotaClienteFilter = "";
   var activeFlotaEnRutaFilter = false;
 
   function applyFlotaPageVisibility() {
@@ -4012,8 +4026,13 @@
         var unidadEl = el.querySelector && el.querySelector(".unidad-text");
         unidadVisible = !!unidadEl && unidadEl.textContent === activeFlotaUnidadFilter;
       }
+      var clienteVisible = true;
+      if (activeFlotaClienteFilter) {
+        var inpCli = el.querySelector && el.querySelector('input[data-field="cliente"]');
+        clienteVisible = !!inpCli && inpCli.value === activeFlotaClienteFilter;
+      }
       var enRutaVisible = !activeFlotaEnRutaFilter || isEnRuta(el);
-      el.hidden = !(pageVisible && statusVisible && unidadVisible && enRutaVisible);
+      el.hidden = !(pageVisible && statusVisible && unidadVisible && clienteVisible && enRutaVisible);
     });
     Array.prototype.forEach.call(document.querySelectorAll(".flota-page-btn"), function (btn) {
       btn.classList.toggle("active", btn.dataset.page === activeFlotaPage);
@@ -4305,6 +4324,70 @@
   btnFiltroUnidad.addEventListener("click", openFiltroUnidadPicker);
   document.getElementById("cancelFiltroUnidad").addEventListener("click", function () {
     modalFiltroUnidad.hidden = true;
+  });
+
+  // --- Filtrar por cliente: same modal-picker + search pattern as the
+  // unidad filter above, built from the cliente values actually in use. ---
+  var modalFiltroCliente = document.getElementById("modalFiltroCliente");
+  var btnFiltroCliente = document.getElementById("btnFiltroCliente");
+
+  function updateFiltroClienteButtonLabel() {
+    btnFiltroCliente.textContent = activeFlotaClienteFilter
+      ? "Filtrando: " + activeFlotaClienteFilter
+      : "Filtrar por cliente (todos)";
+  }
+
+  function openFiltroClientePicker() {
+    var list = document.getElementById("filtroClienteOptionsList");
+    var search = document.getElementById("filtroClienteSearch");
+    var allClientes = collectRows()
+      .map(function (r) { return r.cliente; })
+      .filter(function (c) { return c && c.trim(); })
+      .filter(function (c, i, arr) { return arr.indexOf(c) === i; })
+      .sort(function (a, b) { return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" }); });
+
+    function addFiltroOption(label, value) {
+      var row = document.createElement("div");
+      row.className = "status-pill-row";
+      var span = document.createElement("span");
+      span.textContent = label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-reset btn-small";
+      var isActive = activeFlotaClienteFilter === value;
+      btn.textContent = isActive ? "Activo" : "Elegir";
+      btn.disabled = isActive;
+      btn.addEventListener("click", function () {
+        activeFlotaClienteFilter = value;
+        updateFiltroClienteButtonLabel();
+        applyFlotaPageVisibility();
+        modalFiltroCliente.hidden = true;
+      });
+      row.appendChild(span);
+      row.appendChild(btn);
+      list.appendChild(row);
+    }
+
+    function renderOptions(filterText) {
+      list.innerHTML = "";
+      addFiltroOption("Todos los clientes", "");
+      var term = filterText.trim().toLowerCase();
+      allClientes
+        .filter(function (c) { return !term || c.toLowerCase().indexOf(term) !== -1; })
+        .forEach(function (c) { addFiltroOption(c, c); });
+    }
+
+    search.value = "";
+    renderOptions("");
+    search.oninput = function () { renderOptions(search.value); };
+
+    modalFiltroCliente.hidden = false;
+    search.focus();
+  }
+
+  btnFiltroCliente.addEventListener("click", openFiltroClientePicker);
+  document.getElementById("cancelFiltroCliente").addEventListener("click", function () {
+    modalFiltroCliente.hidden = true;
   });
 
   // --- Filtrar "En ruta": shows only units with the en-ruta flag on,
@@ -6083,6 +6166,7 @@
       if (activeFlotaSucursalFilter && sucursalGroupOf(r.sucursal) !== activeFlotaSucursalFilter) return false;
       if (activeFlotaStatusFilter && r.status !== activeFlotaStatusFilter) return false;
       if (activeFlotaUnidadFilter && r.unidad !== activeFlotaUnidadFilter) return false;
+      if (activeFlotaClienteFilter && r.cliente !== activeFlotaClienteFilter) return false;
       if (activeFlotaEnRutaFilter && !r.enRuta) return false;
       return true;
     });

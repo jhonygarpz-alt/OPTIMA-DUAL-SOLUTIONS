@@ -1181,7 +1181,7 @@
 <div class="modal-overlay" id="modalFiltroCliente" hidden>
   <div class="modal-card">
     <h3>Filtrar por cliente</h3>
-    <p class="preview-hint">Busca y elige un cliente para mostrar solo sus unidades, o "Todos" para quitar el filtro.</p>
+    <p class="preview-hint">Busca y elige uno o varios clientes para mostrar solo sus unidades, o "Todos" para quitar el filtro.</p>
     <input type="text" id="filtroClienteSearch" placeholder="Buscar cliente…" style="margin-bottom:8px;" />
     <div class="status-list" id="filtroClienteOptionsList"></div>
     <div class="modal-actions">
@@ -4000,7 +4000,7 @@
   var activeFlotaStatusFilter = "";
   var activeFlotaSucursalFilter = "";
   var activeFlotaUnidadFilter = "";
-  var activeFlotaClienteFilter = "";
+  var activeFlotaClienteFilter = []; // array of chosen clientes — empty means "todos"
   var activeFlotaEnRutaFilter = false;
 
   function applyFlotaPageVisibility() {
@@ -4028,9 +4028,9 @@
         unidadVisible = !!unidadEl && unidadEl.textContent === activeFlotaUnidadFilter;
       }
       var clienteVisible = true;
-      if (activeFlotaClienteFilter) {
+      if (activeFlotaClienteFilter.length) {
         var inpCli = el.querySelector && el.querySelector('input[data-field="cliente"]');
-        clienteVisible = !!inpCli && inpCli.value === activeFlotaClienteFilter;
+        clienteVisible = !!inpCli && activeFlotaClienteFilter.indexOf(inpCli.value) !== -1;
       }
       var enRutaVisible = !activeFlotaEnRutaFilter || isEnRuta(el);
       el.hidden = !(pageVisible && statusVisible && unidadVisible && clienteVisible && enRutaVisible);
@@ -4328,14 +4328,20 @@
   });
 
   // --- Filtrar por cliente: same modal-picker + search pattern as the
-  // unidad filter above, built from the cliente values actually in use. ---
+  // unidad filter, but multi-select (like the Mantenimiento sucursal
+  // filter) — an array of chosen clientes, empty means "todos", so you
+  // can check several clients at once instead of being limited to one. ---
   var modalFiltroCliente = document.getElementById("modalFiltroCliente");
   var btnFiltroCliente = document.getElementById("btnFiltroCliente");
 
   function updateFiltroClienteButtonLabel() {
-    btnFiltroCliente.textContent = activeFlotaClienteFilter
-      ? "Filtrando: " + activeFlotaClienteFilter
-      : "Filtrar por cliente (todos)";
+    if (!activeFlotaClienteFilter.length) {
+      btnFiltroCliente.textContent = "Filtrar por cliente (todos)";
+    } else if (activeFlotaClienteFilter.length === 1) {
+      btnFiltroCliente.textContent = "Filtrando: " + activeFlotaClienteFilter[0];
+    } else {
+      btnFiltroCliente.textContent = "Filtrando: " + activeFlotaClienteFilter.length + " clientes";
+    }
   }
 
   function openFiltroClientePicker() {
@@ -4355,15 +4361,29 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn-reset btn-small";
-      var isActive = activeFlotaClienteFilter === value;
-      btn.textContent = isActive ? "Activo" : "Elegir";
-      btn.disabled = isActive;
-      btn.addEventListener("click", function () {
-        activeFlotaClienteFilter = value;
-        updateFiltroClienteButtonLabel();
-        applyFlotaPageVisibility();
-        modalFiltroCliente.hidden = true;
-      });
+      if (value === null) {
+        // "Todos los clientes" — clears the whole selection
+        var allActive = activeFlotaClienteFilter.length === 0;
+        btn.textContent = allActive ? "Activo" : "Elegir";
+        btn.disabled = allActive;
+        btn.addEventListener("click", function () {
+          activeFlotaClienteFilter = [];
+          updateFiltroClienteButtonLabel();
+          applyFlotaPageVisibility();
+          renderOptions(search.value);
+        });
+      } else {
+        var isSelected = activeFlotaClienteFilter.indexOf(value) !== -1;
+        btn.textContent = isSelected ? "Quitar" : "Elegir";
+        btn.addEventListener("click", function () {
+          activeFlotaClienteFilter = isSelected
+            ? activeFlotaClienteFilter.filter(function (c) { return c !== value; })
+            : activeFlotaClienteFilter.concat([value]);
+          updateFiltroClienteButtonLabel();
+          applyFlotaPageVisibility();
+          renderOptions(search.value);
+        });
+      }
       row.appendChild(span);
       row.appendChild(btn);
       list.appendChild(row);
@@ -4371,7 +4391,7 @@
 
     function renderOptions(filterText) {
       list.innerHTML = "";
-      addFiltroOption("Todos los clientes", "");
+      addFiltroOption("Todos los clientes", null);
       var term = filterText.trim().toLowerCase();
       allClientes
         .filter(function (c) { return !term || c.toLowerCase().indexOf(term) !== -1; })
@@ -6169,7 +6189,7 @@
       if (activeFlotaSucursalFilter && sucursalGroupOf(r.sucursal) !== activeFlotaSucursalFilter) return false;
       if (activeFlotaStatusFilter && r.status !== activeFlotaStatusFilter) return false;
       if (activeFlotaUnidadFilter && r.unidad !== activeFlotaUnidadFilter) return false;
-      if (activeFlotaClienteFilter && r.cliente !== activeFlotaClienteFilter) return false;
+      if (activeFlotaClienteFilter.length && activeFlotaClienteFilter.indexOf(r.cliente) === -1) return false;
       if (activeFlotaEnRutaFilter && !r.enRuta) return false;
       return true;
     });
